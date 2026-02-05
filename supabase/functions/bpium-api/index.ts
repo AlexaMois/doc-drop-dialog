@@ -18,16 +18,18 @@ const CATALOG_IDS = {
 
 // Маппинг полей для каталога документов (ID=56)
 const DOCUMENT_FIELDS = {
-  title: '2',           // Название документа
-  sources: '3',         // Источники (связь)
-  directions: '4',      // Направления (связь)
-  roles: '5',           // Роли (связь)
-  projects: '6',        // Проекты (связь)
-  tags: '10',           // Теги (связь)
-  checklists: '11',     // Чек-листы (связь)
-  websiteUrl: '14',     // Ссылка
-  funPhrase: '15',      // Фраза для футболки
-  submissionDate: '16', // Дата внесения
+  title: '2',              // Название документа
+  responsiblePerson: '3',  // ФИО ответственного
+  sources: '4',            // Источники (связь)
+  directions: '5',         // Направления (связь)
+  roles: '6',              // Роли (связь)
+  projects: '7',           // Проекты (связь)
+  checklists: '8',         // Чек-листы (связь)
+  tags: '10',              // Теги (связь)
+  websiteUrl: '14',        // Ссылка
+  funPhrase: '15',         // Фраза для футболки
+  submissionDate: '16',    // Дата внесения
+  file: '9',               // Файл документа
 };
 
 interface BpiumRecord {
@@ -176,6 +178,7 @@ serve(async (req) => {
 
           const values: Record<string, unknown> = {
             [DOCUMENT_FIELDS.title]: body.documentName || '',
+            [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson || '',
             [DOCUMENT_FIELDS.submissionDate]: new Date().toISOString().split('.')[0] + 'Z',
           };
 
@@ -241,6 +244,17 @@ serve(async (req) => {
           }
 
           console.log('=== STEP 3: Tags OK ===');
+
+          // Файл
+          if (body.file && body.file.name && body.file.base64) {
+            values[DOCUMENT_FIELDS.file] = [{
+              name: body.file.name,
+              data: body.file.base64,
+            }];
+            console.log('File OK:', body.file.name);
+          }
+
+          console.log('=== STEP 4: File OK ===');
           console.log('=== SENDING TO BPIUM ===');
           console.log(JSON.stringify(values, null, 2));
 
