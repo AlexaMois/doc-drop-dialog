@@ -147,54 +147,84 @@ serve(async (req) => {
       }
 
       case 'submit-document': {
-        const body = await req.json();
+        try {
+          const body = await req.json();
+          console.log('=== RECEIVED BODY ===');
+          console.log(JSON.stringify(body, null, 2));
 
-        console.log('Received body:', JSON.stringify(body, null, 2));
+          const values: Record<string, unknown> = {
+            [DOCUMENT_FIELDS.title]: body.documentName || '',
+            [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson || '',
+            [DOCUMENT_FIELDS.websiteUrl]: body.websiteUrl || '',
+            [DOCUMENT_FIELDS.funPhrase]: body.funPhrase || '',
+            [DOCUMENT_FIELDS.submissionDate]: body.submissionDate || new Date().toISOString(),
+          };
 
-        // Формируем значения для записи в Bpium
-        const values: Record<string, unknown> = {
-          [DOCUMENT_FIELDS.title]: body.documentName || '',
-          [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson || '',
-          [DOCUMENT_FIELDS.websiteUrl]: body.websiteUrl || '',
-          [DOCUMENT_FIELDS.funPhrase]: body.funPhrase || '',
-          [DOCUMENT_FIELDS.submissionDate]: body.submissionDate || new Date().toISOString(),
-        };
+          console.log('=== STEP 1: Basic fields OK ===');
 
-        // Добавляем связанные поля только если есть данные
-        const sourceLinks = mapToLinks(body.sourceIds);
-        if (sourceLinks.length > 0) values[DOCUMENT_FIELDS.sources] = sourceLinks;
+          // Добавляем связанные поля
+          if (body.sourceIds && Array.isArray(body.sourceIds) && body.sourceIds.length > 0) {
+            values[DOCUMENT_FIELDS.sources] = body.sourceIds.map((id: string) => parseInt(id));
+            console.log('Sources OK:', values[DOCUMENT_FIELDS.sources]);
+          }
 
-        const directionLinks = mapToLinks(body.directionIds);
-        if (directionLinks.length > 0) values[DOCUMENT_FIELDS.directions] = directionLinks;
+          if (body.directionIds && Array.isArray(body.directionIds) && body.directionIds.length > 0) {
+            values[DOCUMENT_FIELDS.directions] = body.directionIds.map((id: string) => parseInt(id));
+            console.log('Directions OK:', values[DOCUMENT_FIELDS.directions]);
+          }
 
-        const roleLinks = mapToLinks(body.roleIds);
-        if (roleLinks.length > 0) values[DOCUMENT_FIELDS.roles] = roleLinks;
+          if (body.roleIds && Array.isArray(body.roleIds) && body.roleIds.length > 0) {
+            values[DOCUMENT_FIELDS.roles] = body.roleIds.map((id: string) => parseInt(id));
+            console.log('Roles OK:', values[DOCUMENT_FIELDS.roles]);
+          }
 
-        const projectLinks = mapToLinks(body.projectIds);
-        if (projectLinks.length > 0) values[DOCUMENT_FIELDS.projects] = projectLinks;
+          if (body.projectIds && Array.isArray(body.projectIds) && body.projectIds.length > 0) {
+            values[DOCUMENT_FIELDS.projects] = body.projectIds.map((id: string) => parseInt(id));
+            console.log('Projects OK:', values[DOCUMENT_FIELDS.projects]);
+          }
 
-        const checklistLinks = mapToLinks(body.checklistIds);
-        if (checklistLinks.length > 0) values[DOCUMENT_FIELDS.checklists] = checklistLinks;
+          if (body.checklistIds && Array.isArray(body.checklistIds) && body.checklistIds.length > 0) {
+            values[DOCUMENT_FIELDS.checklists] = body.checklistIds.map((id: string) => parseInt(id));
+            console.log('Checklists OK:', values[DOCUMENT_FIELDS.checklists]);
+          }
 
-        // Теги как массив чисел
-        const tagLinks = mapToLinks(body.tagIds);
-        if (tagLinks.length > 0) values[DOCUMENT_FIELDS.tags] = tagLinks;
+          console.log('=== STEP 2: Links OK ===');
 
-        // Добавляем файл, если передан
-        if (body.file && body.file.name && body.file.base64) {
-          values[DOCUMENT_FIELDS.file] = [{
-            name: body.file.name,
-            data: body.file.base64,
-          }];
+          // Теги
+          if (body.tagIds && Array.isArray(body.tagIds) && body.tagIds.length > 0) {
+            values[DOCUMENT_FIELDS.tags] = body.tagIds.map((id: string) => parseInt(id));
+            console.log('Tags OK:', values[DOCUMENT_FIELDS.tags]);
+          }
+
+          console.log('=== STEP 3: Tags OK ===');
+
+          // Файл
+          if (body.file && body.file.name && body.file.base64) {
+            values[DOCUMENT_FIELDS.file] = [{
+              name: body.file.name,
+              data: body.file.base64,
+            }];
+            console.log('File OK:', body.file.name);
+          }
+
+          console.log('=== STEP 4: File OK ===');
+          console.log('=== SENDING TO BPIUM ===');
+          console.log(JSON.stringify(values, null, 2));
+
+          const record = await createRecord(CATALOG_IDS.documents, values);
+
+          return new Response(JSON.stringify({ success: true, recordId: record.id }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error: unknown) {
+          console.error('=== ERROR IN SUBMIT-DOCUMENT ===');
+          console.error(error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          return new Response(
+            JSON.stringify({ error: errorMessage, stack: error instanceof Error ? error.stack : '' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
-
-        console.log('Creating record with values:', JSON.stringify(values, null, 2));
-
-        const record = await createRecord(CATALOG_IDS.documents, values);
-
-        return new Response(JSON.stringify({ success: true, recordId: record.id }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
       }
 
       default:
