@@ -144,19 +144,39 @@ serve(async (req) => {
         const body = await req.json();
 
         // Формируем значения для записи в Bpium
+        // Связанные поля отправляются как массивы объектов {catalogId, recordId}
         const values: Record<string, unknown> = {
           [DOCUMENT_FIELDS.title]: body.documentName,
           [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson,
-          [DOCUMENT_FIELDS.sources]: body.sourceIds,
-          [DOCUMENT_FIELDS.directions]: body.directionIds,
-          [DOCUMENT_FIELDS.roles]: body.roleIds,
-          [DOCUMENT_FIELDS.projects]: body.projectIds,
-          [DOCUMENT_FIELDS.checklists]: body.checklistIds,
+          [DOCUMENT_FIELDS.sources]: body.sourceIds.map((id: string) => ({ 
+            catalogId: CATALOG_IDS.sources, 
+            recordId: parseInt(id) 
+          })),
+          [DOCUMENT_FIELDS.directions]: body.directionIds.map((id: string) => ({ 
+            catalogId: CATALOG_IDS.directions, 
+            recordId: parseInt(id) 
+          })),
+          [DOCUMENT_FIELDS.roles]: body.roleIds.map((id: string) => ({ 
+            catalogId: CATALOG_IDS.roles, 
+            recordId: parseInt(id) 
+          })),
+          [DOCUMENT_FIELDS.projects]: body.projectIds.map((id: string) => ({ 
+            catalogId: CATALOG_IDS.projects, 
+            recordId: parseInt(id) 
+          })),
           [DOCUMENT_FIELDS.tags]: body.tagIds || [],
           [DOCUMENT_FIELDS.websiteUrl]: body.websiteUrl || '',
           [DOCUMENT_FIELDS.funPhrase]: body.funPhrase || '',
           [DOCUMENT_FIELDS.submissionDate]: body.submissionDate,
         };
+
+        // Добавляем чек-листы только если заполнены
+        if (body.checklistIds && body.checklistIds.length > 0) {
+          values[DOCUMENT_FIELDS.checklists] = body.checklistIds.map((id: string) => ({ 
+            catalogId: CATALOG_IDS.checklists, 
+            recordId: parseInt(id) 
+          }));
+        }
 
         // Добавляем файл, если передан
         if (body.file) {

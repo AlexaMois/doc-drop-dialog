@@ -3,47 +3,62 @@ import type { CatalogOption } from "./useBpiumCatalogs";
 
 // Ключевые слова для сопоставления с тегами
 const tagKeywords: Record<string, string[]> = {
-  "tag-1": ["важно", "критично", "приоритет", "срочно важно"],
-  "tag-2": ["срочно", "немедленно", "быстро", "asap", "дедлайн"],
-  "tag-3": ["архив", "архивный", "старый", "устаревший", "история"],
-  "tag-4": ["новое", "новый", "создан", "добавлен"],
-  "tag-5": ["обновлено", "обновлён", "актуализация", "редакция", "версия"],
-  "tag-6": ["проверка", "ревью", "согласование", "рассмотрение"],
-  "tag-7": ["утверждено", "одобрено", "подписан", "согласован", "принят"],
-  "tag-8": ["регламент", "положение", "правило", "порядок", "процедура"],
-  "tag-9": ["инструкция", "руководство", "manual", "гайд", "памятка"],
-  "tag-10": ["отчёт", "отчет", "report", "статистика", "аналитика"],
-  "tag-11": ["договор", "контракт", "соглашение", "nda"],
-  "tag-12": ["приказ", "распоряжение", "указание", "постановление"],
-  "tag-13": ["технический", "техническая", "спецификация", "схема", "чертёж"],
-  "tag-14": ["финансы", "бюджет", "оплата", "счёт", "invoice", "акт"],
-  "tag-15": ["hr", "кадры", "сотрудник", "персонал", "штат", "увольнение", "найм"],
+  "1": ["бдд", "дорожн", "движени", "транспорт", "водител", "автомобил"],
+  "2": ["здоровь", "медицин", "медосмотр", "врач", "лечени"],
+  "3": ["пусков", "аудит", "проверк", "ревизи"],
+  "4": ["рн бдд", "региональн"],
+  "5": ["соц", "быт", "социальн"],
+  "6": ["укэб", "контрол"],
+};
+
+// Предустановленные теги на основе направлений
+const directionTagSuggestions: Record<string, string[]> = {
+  // Безопасность дорожного движения (ID: 4)
+  "4": ["1", "4"], // БДД, РН БДД
+  // Пожарная безопасность (ID: 5)
+  "5": ["3"], // Пусковой Аудит
+  // Кадровое делопроизводство (ID: 8)
+  "8": ["5"], // Соц Быт
+  // Медицина (ID: 15)
+  "15": ["2"], // Охрана Здоровья
+  // Общие документы по ПБ, ОТ и ООС (ID: 12)
+  "12": ["3", "6"], // Пусковой Аудит, УКЭБ
 };
 
 export function useTagSuggestions(
   documentName: string,
   fileName: string | undefined,
-  availableTags: CatalogOption[]
+  availableTags: CatalogOption[],
+  selectedDirections?: string[]
 ): CatalogOption[] {
   return useMemo(() => {
-    if (!documentName && !fileName) {
-      return [];
-    }
-
-    const textToAnalyze = `${documentName} ${fileName || ""}`.toLowerCase();
     const suggestedTagIds = new Set<string>();
 
-    // Ищем совпадения по ключевым словам
-    for (const [tagId, keywords] of Object.entries(tagKeywords)) {
-      for (const keyword of keywords) {
-        if (textToAnalyze.includes(keyword.toLowerCase())) {
-          suggestedTagIds.add(tagId);
-          break;
+    // 1. Предложения на основе выбранных направлений
+    if (selectedDirections && selectedDirections.length > 0) {
+      for (const directionId of selectedDirections) {
+        const suggestedTags = directionTagSuggestions[directionId];
+        if (suggestedTags) {
+          suggestedTags.forEach(tagId => suggestedTagIds.add(tagId));
+        }
+      }
+    }
+
+    // 2. Предложения на основе названия документа и имени файла
+    if (documentName || fileName) {
+      const textToAnalyze = `${documentName} ${fileName || ""}`.toLowerCase();
+      
+      for (const [tagId, keywords] of Object.entries(tagKeywords)) {
+        for (const keyword of keywords) {
+          if (textToAnalyze.includes(keyword.toLowerCase())) {
+            suggestedTagIds.add(tagId);
+            break;
+          }
         }
       }
     }
 
     // Фильтруем доступные теги по найденным ID
     return availableTags.filter((tag) => suggestedTagIds.has(tag.value));
-  }, [documentName, fileName, availableTags]);
+  }, [documentName, fileName, availableTags, selectedDirections]);
 }
