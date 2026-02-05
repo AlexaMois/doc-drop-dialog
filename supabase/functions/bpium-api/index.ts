@@ -83,6 +83,16 @@ async function createRecord(
   console.log('Values:', JSON.stringify(values, null, 2));
   
   const payload = { values };
+
+  // Проверка: все значения-объекты в values должны быть массивами
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== null && value !== undefined && typeof value === 'object') {
+      if (!Array.isArray(value)) {
+        console.error(`Field ${key} is not an array:`, value);
+      }
+    }
+  }
+
   console.log('Payload to Bpium:', JSON.stringify(payload, null, 2));
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
@@ -169,10 +179,18 @@ serve(async (req) => {
           const values: Record<string, unknown> = {
             [DOCUMENT_FIELDS.title]: body.documentName || '',
             [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson || '',
-            [DOCUMENT_FIELDS.websiteUrl]: body.websiteUrl || '',
-            [DOCUMENT_FIELDS.funPhrase]: body.funPhrase || '',
             [DOCUMENT_FIELDS.submissionDate]: body.submissionDate || new Date().toISOString(),
           };
+
+          // Добавляем URL только если заполнен
+          if (body.websiteUrl && String(body.websiteUrl).trim() !== '') {
+            values[DOCUMENT_FIELDS.websiteUrl] = body.websiteUrl;
+          }
+
+          // Добавляем фразу только если заполнена
+          if (body.funPhrase && String(body.funPhrase).trim() !== '') {
+            values[DOCUMENT_FIELDS.funPhrase] = body.funPhrase;
+          }
 
           console.log('=== STEP 1: Basic fields OK ===');
 
