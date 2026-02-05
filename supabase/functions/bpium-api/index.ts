@@ -78,21 +78,35 @@ async function createRecord(
 ): Promise<BpiumRecord> {
   const domain = Deno.env.get('BPIUM_DOMAIN');
   
+  console.log('=== CREATE RECORD ===');
+  console.log('Catalog ID:', catalogId);
+  console.log('Values:', JSON.stringify(values, null, 2));
+  
+  const payload = { values };
+  console.log('Payload to Bpium:', JSON.stringify(payload, null, 2));
+  
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'POST',
     headers: {
       'Authorization': getBpiumAuthHeader(),
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ values }),
+    body: JSON.stringify(payload),
   });
 
+  console.log('Response status:', response.status);
+
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to create record: ${error}`);
+    const errorText = await response.text();
+    console.error('=== BPIUM ERROR ===');
+    console.error('Status:', response.status);
+    console.error('Response:', errorText);
+    throw new Error(`Failed to create record: ${errorText}`);
   }
 
-  return await response.json();
+  const result = await response.json();
+  console.log('Bpium response:', JSON.stringify(result, null, 2));
+  return result;
 }
 
 // Преобразование записей Bpium в формат для MultiSelect
