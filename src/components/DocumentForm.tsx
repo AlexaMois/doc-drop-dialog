@@ -354,7 +354,7 @@ export function DocumentForm() {
       {/* Чек-листы */}
       <div className="space-y-2">
         <Label>
-          Чек-листы <span className="text-destructive">*</span>
+          Чек-листы
         </Label>
         <MultiSelect
           options={catalogs.checklists.data || []}
