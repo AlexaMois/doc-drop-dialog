@@ -103,6 +103,15 @@ function transformRecords(records: BpiumRecord[]): { value: string; label: strin
   }));
 }
 
+// Безопасное преобразование массива в связи Bpium
+function mapToLinks(ids: unknown, catalogId: string): { catalogId: string; recordId: number }[] {
+  if (!ids || !Array.isArray(ids) || ids.length === 0) return [];
+  return ids.map((id: string) => ({ 
+    catalogId, 
+    recordId: parseInt(id) 
+  }));
+}
+
 serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') {
@@ -143,48 +152,47 @@ serve(async (req) => {
       case 'submit-document': {
         const body = await req.json();
 
+        console.log('Received body:', JSON.stringify(body, null, 2));
+
         // Формируем значения для записи в Bpium
-        // Связанные поля отправляются как массивы объектов {catalogId, recordId}
         const values: Record<string, unknown> = {
-          [DOCUMENT_FIELDS.title]: body.documentName,
-          [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson,
-          [DOCUMENT_FIELDS.sources]: body.sourceIds.map((id: string) => ({ 
-            catalogId: CATALOG_IDS.sources, 
-            recordId: parseInt(id) 
-          })),
-          [DOCUMENT_FIELDS.directions]: body.directionIds.map((id: string) => ({ 
-            catalogId: CATALOG_IDS.directions, 
-            recordId: parseInt(id) 
-          })),
-          [DOCUMENT_FIELDS.roles]: body.roleIds.map((id: string) => ({ 
-            catalogId: CATALOG_IDS.roles, 
-            recordId: parseInt(id) 
-          })),
-          [DOCUMENT_FIELDS.projects]: body.projectIds.map((id: string) => ({ 
-            catalogId: CATALOG_IDS.projects, 
-            recordId: parseInt(id) 
-          })),
-          [DOCUMENT_FIELDS.tags]: body.tagIds || [],
+          [DOCUMENT_FIELDS.title]: body.documentName || '',
+          [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson || '',
           [DOCUMENT_FIELDS.websiteUrl]: body.websiteUrl || '',
           [DOCUMENT_FIELDS.funPhrase]: body.funPhrase || '',
-          [DOCUMENT_FIELDS.submissionDate]: body.submissionDate,
+          [DOCUMENT_FIELDS.submissionDate]: body.submissionDate || new Date().toISOString(),
         };
 
-        // Добавляем чек-листы только если заполнены
-        if (body.checklistIds && body.checklistIds.length > 0) {
-          values[DOCUMENT_FIELDS.checklists] = body.checklistIds.map((id: string) => ({ 
-            catalogId: CATALOG_IDS.checklists, 
-            recordId: parseInt(id) 
-          }));
+        // Добавляем связанные поля только если есть данные
+        const sourceLinks = mapToLinks(body.sourceIds, CATALOG_IDS.sources);
+        if (sourceLinks.length > 0) values[DOCUMENT_FIELDS.sources] = sourceLinks;
+
+        const directionLinks = mapToLinks(body.directionIds, CATALOG_IDS.directions);
+        if (directionLinks.length > 0) values[DOCUMENT_FIELDS.directions] = directionLinks;
+
+        const roleLinks = mapToLinks(body.roleIds, CATALOG_IDS.roles);
+        if (roleLinks.length > 0) values[DOCUMENT_FIELDS.roles] = roleLinks;
+
+        const projectLinks = mapToLinks(body.projectIds, CATALOG_IDS.projects);
+        if (projectLinks.length > 0) values[DOCUMENT_FIELDS.projects] = projectLinks;
+
+        const checklistLinks = mapToLinks(body.checklistIds, CATALOG_IDS.checklists);
+        if (checklistLinks.length > 0) values[DOCUMENT_FIELDS.checklists] = checklistLinks;
+
+        // Теги как простой массив
+        if (body.tagIds && Array.isArray(body.tagIds) && body.tagIds.length > 0) {
+          values[DOCUMENT_FIELDS.tags] = body.tagIds;
         }
 
         // Добавляем файл, если передан
-        if (body.file) {
+        if (body.file && body.file.name && body.file.base64) {
           values[DOCUMENT_FIELDS.file] = [{
             name: body.file.name,
             data: body.file.base64,
           }];
         }
+
+        console.log('Creating record with values:', JSON.stringify(values, null, 2));
 
         const record = await createRecord(CATALOG_IDS.documents, values);
 
