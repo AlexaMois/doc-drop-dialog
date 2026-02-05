@@ -177,9 +177,14 @@ serve(async (req) => {
           console.log('=== RECEIVED BODY ===');
           console.log(JSON.stringify(body, null, 2));
 
+          console.log('=== CATALOG_IDS CHECK ===');
+          console.log(JSON.stringify(CATALOG_IDS, null, 2));
+
           const values: Record<string, unknown> = {
             [DOCUMENT_FIELDS.title]: body.documentName || '',
-            [DOCUMENT_FIELDS.submissionDate]: new Date().toISOString().split('.')[0] + 'Z',
+            [DOCUMENT_FIELDS.submissionDate]: body.submissionDate 
+              ? new Date(body.submissionDate).toISOString().split('.')[0] + 'Z'
+              : new Date().toISOString().split('.')[0] + 'Z',
           };
 
           // responsiblePerson как связь на каталог users
@@ -245,9 +250,12 @@ serve(async (req) => {
 
           console.log('=== STEP 2: Links OK ===');
 
-          // Теги - массив чисел
+          // Теги - массив объектов {catalogId, recordId}
           if (body.tagIds && Array.isArray(body.tagIds) && body.tagIds.length > 0) {
-            values[DOCUMENT_FIELDS.tags] = body.tagIds.map((id: string) => parseInt(id));
+            values[DOCUMENT_FIELDS.tags] = body.tagIds.map((id: string) => ({
+              catalogId: CATALOG_IDS.tags,
+              recordId: parseInt(id)
+            }));
             console.log('Tags OK:', values[DOCUMENT_FIELDS.tags]);
           }
 
@@ -263,8 +271,11 @@ serve(async (req) => {
           }
 
           console.log('=== STEP 4: File OK ===');
-          console.log('=== SENDING TO BPIUM ===');
+          console.log('=== FINAL PAYLOAD ===');
           console.log(JSON.stringify(values, null, 2));
+          console.log('=== CATALOG_IDS ===');
+          console.log(JSON.stringify(CATALOG_IDS, null, 2));
+          console.log('=== SENDING TO BPIUM ===');
 
           const record = await createRecord(CATALOG_IDS.documents, values);
 
