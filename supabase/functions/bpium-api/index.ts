@@ -103,13 +103,10 @@ function transformRecords(records: BpiumRecord[]): { value: string; label: strin
   }));
 }
 
-// Безопасное преобразование массива в связи Bpium
-function mapToLinks(ids: unknown, catalogId: string): { catalogId: string; recordId: number }[] {
+// Безопасное преобразование массива в ID записей для Bpium
+function mapToLinks(ids: unknown): number[] {
   if (!ids || !Array.isArray(ids) || ids.length === 0) return [];
-  return ids.map((id: string) => ({ 
-    catalogId, 
-    recordId: parseInt(id) 
-  }));
+  return ids.map((id: string) => parseInt(id));
 }
 
 serve(async (req) => {
@@ -164,19 +161,19 @@ serve(async (req) => {
         };
 
         // Добавляем связанные поля только если есть данные
-        const sourceLinks = mapToLinks(body.sourceIds, CATALOG_IDS.sources);
+        const sourceLinks = mapToLinks(body.sourceIds);
         if (sourceLinks.length > 0) values[DOCUMENT_FIELDS.sources] = sourceLinks;
 
-        const directionLinks = mapToLinks(body.directionIds, CATALOG_IDS.directions);
+        const directionLinks = mapToLinks(body.directionIds);
         if (directionLinks.length > 0) values[DOCUMENT_FIELDS.directions] = directionLinks;
 
-        const roleLinks = mapToLinks(body.roleIds, CATALOG_IDS.roles);
+        const roleLinks = mapToLinks(body.roleIds);
         if (roleLinks.length > 0) values[DOCUMENT_FIELDS.roles] = roleLinks;
 
-        const projectLinks = mapToLinks(body.projectIds, CATALOG_IDS.projects);
+        const projectLinks = mapToLinks(body.projectIds);
         if (projectLinks.length > 0) values[DOCUMENT_FIELDS.projects] = projectLinks;
 
-        const checklistLinks = mapToLinks(body.checklistIds, CATALOG_IDS.checklists);
+        const checklistLinks = mapToLinks(body.checklistIds);
         if (checklistLinks.length > 0) values[DOCUMENT_FIELDS.checklists] = checklistLinks;
 
         // Теги как простой массив
