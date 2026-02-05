@@ -37,41 +37,28 @@ interface BpiumRecord {
   values: Record<string, unknown>;
 }
 
-// Получение токена авторизации Bpium
-async function getBpiumToken(): Promise<string> {
-  const domain = Deno.env.get('BPIUM_DOMAIN');
+// Получение заголовка авторизации Basic Auth
+function getBpiumAuthHeader(): string {
   const login = Deno.env.get('BPIUM_LOGIN');
   const password = Deno.env.get('BPIUM_PASSWORD');
 
-  if (!domain || !login || !password) {
+  if (!login || !password) {
     throw new Error('Bpium credentials not configured');
   }
 
-  const response = await fetch(`${domain}/api/v1/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ login, password }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Bpium auth failed: ${error}`);
-  }
-
-  const data = await response.json();
-  return data.token;
+  // Кодируем логин:пароль в Base64
+  const credentials = btoa(`${login}:${password}`);
+  return `Basic ${credentials}`;
 }
 
 // Получение записей каталога
-async function fetchCatalog(token: string, catalogId: string): Promise<BpiumRecord[]> {
+async function fetchCatalog(catalogId: string): Promise<BpiumRecord[]> {
   const domain = Deno.env.get('BPIUM_DOMAIN');
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'GET',
     headers: {
-      'Authorization': `Bearer ${token}`,
+      'Authorization': getBpiumAuthHeader(),
       'Content-Type': 'application/json',
     },
   });
@@ -86,7 +73,6 @@ async function fetchCatalog(token: string, catalogId: string): Promise<BpiumReco
 
 // Создание записи в каталоге
 async function createRecord(
-  token: string, 
   catalogId: string, 
   values: Record<string, unknown>
 ): Promise<BpiumRecord> {
@@ -95,7 +81,7 @@ async function createRecord(
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
+      'Authorization': getBpiumAuthHeader(),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ values }),
@@ -127,20 +113,17 @@ serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
-    // Получаем токен для всех операций
-    const token = await getBpiumToken();
-
     switch (action) {
       case 'get-catalogs': {
         // Загружаем все справочники параллельно
         const [directionsRecords, rolesRecords, projectsRecords, sourcesRecords, checklistsRecords, tagsRecords] = 
           await Promise.all([
-            fetchCatalog(token, CATALOG_IDS.directions),
-            fetchCatalog(token, CATALOG_IDS.roles),
-            fetchCatalog(token, CATALOG_IDS.projects),
-            fetchCatalog(token, CATALOG_IDS.sources),
-            fetchCatalog(token, CATALOG_IDS.checklists),
-            fetchCatalog(token, CATALOG_IDS.tags),
+            fetchCatalog(CATALOG_IDS.directions),
+            fetchCatalog(CATALOG_IDS.roles),
+            fetchCatalog(CATALOG_IDS.projects),
+            fetchCatalog(CATALOG_IDS.sources),
+            fetchCatalog(CATALOG_IDS.checklists),
+            fetchCatalog(CATALOG_IDS.tags),
           ]);
 
         const result = {
@@ -183,7 +166,7 @@ serve(async (req) => {
           }];
         }
 
-        const record = await createRecord(token, CATALOG_IDS.documents, values);
+        const record = await createRecord(CATALOG_IDS.documents, values);
 
         return new Response(JSON.stringify({ success: true, recordId: record.id }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
