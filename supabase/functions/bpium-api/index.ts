@@ -176,10 +176,9 @@ serve(async (req) => {
         const checklistLinks = mapToLinks(body.checklistIds);
         if (checklistLinks.length > 0) values[DOCUMENT_FIELDS.checklists] = checklistLinks;
 
-        // Теги как простой массив
-        if (body.tagIds && Array.isArray(body.tagIds) && body.tagIds.length > 0) {
-          values[DOCUMENT_FIELDS.tags] = body.tagIds;
-        }
+        // Теги как массив чисел
+        const tagLinks = mapToLinks(body.tagIds);
+        if (tagLinks.length > 0) values[DOCUMENT_FIELDS.tags] = tagLinks;
 
         // Добавляем файл, если передан
         if (body.file && body.file.name && body.file.base64) {
