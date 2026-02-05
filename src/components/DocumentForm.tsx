@@ -2,31 +2,28 @@ import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Send, CheckCircle, Sparkles } from "lucide-react";
+import { Send, CheckCircle, Sparkles, Loader2, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/MultiSelect";
 import { FileUpload } from "@/components/FileUpload";
-import {
-  sourcesData,
-  directionsData,
-  rolesData,
-  projectsData,
-  checklistsData,
-  tagsData,
-} from "@/data/catalogData";
+import { TagSelector } from "@/components/TagSelector";
+import { useAllCatalogs } from "@/hooks/useBpiumCatalogs";
+import { useResponsiblePerson } from "@/hooks/useResponsiblePerson";
+import { useTagSuggestions } from "@/hooks/useTagSuggestions";
 
 const formSchema = z.object({
   documentName: z.string().min(1, "Название документа обязательно"),
   file: z.instanceof(File, { message: "Файл документа обязателен" }).nullable().refine((val) => val !== null, "Файл документа обязателен"),
+  responsiblePerson: z.string().min(1, "ФИО ответственного обязательно"),
   sources: z.array(z.string()).min(1, "Выберите хотя бы один источник"),
   directions: z.array(z.string()).min(1, "Выберите хотя бы одно направление"),
   roles: z.array(z.string()).min(1, "Выберите хотя бы одну роль"),
   projects: z.array(z.string()).min(1, "Выберите хотя бы один проект"),
   checklists: z.array(z.string()).min(1, "Выберите хотя бы один чек-лист"),
-  tags: z.array(z.string()).min(1, "Выберите хотя бы один тег"),
+  tags: z.array(z.string()).optional(),
   websiteUrl: z.string().url("Введите корректный URL").optional().or(z.literal("")),
   funPhrase: z.string().optional(),
 });
@@ -36,6 +33,9 @@ type FormData = z.infer<typeof formSchema>;
 export function DocumentForm() {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  
+  const catalogs = useAllCatalogs();
+  const responsible = useResponsiblePerson();
 
   const {
     register,
@@ -49,6 +49,7 @@ export function DocumentForm() {
     defaultValues: {
       documentName: "",
       file: null,
+      responsiblePerson: "",
       sources: [],
       directions: [],
       roles: [],
@@ -60,27 +61,45 @@ export function DocumentForm() {
     },
   });
 
+  // Синхронизация ФИО из localStorage
+  React.useEffect(() => {
+    if (responsible.name) {
+      setValue("responsiblePerson", responsible.name);
+    }
+  }, [responsible.name, setValue]);
+
   const file = watch("file");
+  const documentName = watch("documentName");
   const sources = watch("sources");
   const directions = watch("directions");
   const roles = watch("roles");
   const projects = watch("projects");
   const checklists = watch("checklists");
-  const tags = watch("tags");
+  const tags = watch("tags") || [];
+
+  // Предложения тегов на основе названия и файла
+  const suggestedTags = useTagSuggestions(
+    documentName,
+    file?.name,
+    catalogs.tags.data || []
+  );
 
   const onSubmit = async (data: FormData) => {
+    // Сохраняем ФИО при первой отправке
+    if (!responsible.isLocked) {
+      responsible.saveName(data.responsiblePerson);
+    }
+
     setIsSubmitting(true);
     
-    // Добавляем служебные поля
     const submitData = {
       ...data,
       submissionDate: new Date().toISOString(),
-      userName: "Текущий пользователь", // В реальном приложении - из auth
     };
     
     console.log("Отправка данных в Bpium:", submitData);
     
-    // Симуляция отправки
+    // TODO: Реальный API-вызов к Bpium
     await new Promise((resolve) => setTimeout(resolve, 1500));
     
     setIsSubmitting(false);
@@ -88,9 +107,30 @@ export function DocumentForm() {
   };
 
   const handleReset = () => {
-    reset();
+    reset({
+      documentName: "",
+      file: null,
+      responsiblePerson: responsible.name,
+      sources: [],
+      directions: [],
+      roles: [],
+      projects: [],
+      checklists: [],
+      tags: [],
+      websiteUrl: "",
+      funPhrase: "",
+    });
     setIsSubmitted(false);
   };
+
+  if (responsible.isLoading || catalogs.isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">Загрузка данных...</p>
+      </div>
+    );
+  }
 
   if (isSubmitted) {
     return (
@@ -100,7 +140,7 @@ export function DocumentForm() {
         </div>
         <h2 className="text-2xl font-semibold mb-2">Документ принят!</h2>
         <p className="text-muted-foreground mb-6">
-          Документ отправлен на проверку
+          Документ принят и отправлен на проверку
         </p>
         <Button onClick={handleReset} variant="outline">
           Добавить ещё документ
@@ -111,6 +151,36 @@ export function DocumentForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* ФИО ответственного */}
+      <div className="space-y-2">
+        <Label htmlFor="responsiblePerson" className="flex items-center gap-2">
+          ФИО ответственного <span className="text-destructive">*</span>
+          {responsible.isLocked && (
+            <Lock className="h-3 w-3 text-muted-foreground" />
+          )}
+        </Label>
+        <Input
+          id="responsiblePerson"
+          placeholder="Введите ваше ФИО"
+          {...register("responsiblePerson")}
+          disabled={responsible.isLocked}
+          className={responsible.isLocked ? "bg-muted cursor-not-allowed" : "bg-card"}
+          onChange={(e) => {
+            if (!responsible.isLocked) {
+              responsible.updateTempName(e.target.value);
+            }
+          }}
+        />
+        {responsible.isLocked && (
+          <p className="text-xs text-muted-foreground">
+            ФИО зафиксировано и не может быть изменено
+          </p>
+        )}
+        {errors.responsiblePerson && (
+          <p className="text-sm text-destructive">{errors.responsiblePerson.message}</p>
+        )}
+      </div>
+
       {/* Название документа */}
       <div className="space-y-2">
         <Label htmlFor="documentName">
@@ -147,7 +217,7 @@ export function DocumentForm() {
           Источник документа <span className="text-destructive">*</span>
         </Label>
         <MultiSelect
-          options={sourcesData}
+          options={catalogs.sources.data || []}
           selected={sources}
           onChange={(v) => setValue("sources", v, { shouldValidate: true })}
           placeholder="Выберите источники"
@@ -163,7 +233,7 @@ export function DocumentForm() {
           Направления <span className="text-destructive">*</span>
         </Label>
         <MultiSelect
-          options={directionsData}
+          options={catalogs.directions.data || []}
           selected={directions}
           onChange={(v) => setValue("directions", v, { shouldValidate: true })}
           placeholder="Выберите направления"
@@ -179,7 +249,7 @@ export function DocumentForm() {
           Роли <span className="text-destructive">*</span>
         </Label>
         <MultiSelect
-          options={rolesData}
+          options={catalogs.roles.data || []}
           selected={roles}
           onChange={(v) => setValue("roles", v, { shouldValidate: true })}
           placeholder="Выберите роли"
@@ -195,7 +265,7 @@ export function DocumentForm() {
           Проекты <span className="text-destructive">*</span>
         </Label>
         <MultiSelect
-          options={projectsData}
+          options={catalogs.projects.data || []}
           selected={projects}
           onChange={(v) => setValue("projects", v, { shouldValidate: true })}
           placeholder="Выберите проекты"
@@ -211,7 +281,7 @@ export function DocumentForm() {
           Чек-листы <span className="text-destructive">*</span>
         </Label>
         <MultiSelect
-          options={checklistsData}
+          options={catalogs.checklists.data || []}
           selected={checklists}
           onChange={(v) => setValue("checklists", v, { shouldValidate: true })}
           placeholder="Выберите чек-листы"
@@ -221,22 +291,14 @@ export function DocumentForm() {
         )}
       </div>
 
-      {/* Теги */}
-      <div className="space-y-2">
-        <Label>
-          Теги <span className="text-destructive">*</span>
-        </Label>
-        <MultiSelect
-          options={tagsData}
-          selected={tags}
-          onChange={(v) => setValue("tags", v, { shouldValidate: true })}
-          placeholder="Выберите теги"
-          searchPlaceholder="Введите для поиска..."
-        />
-        {errors.tags && (
-          <p className="text-sm text-destructive">{errors.tags.message}</p>
-        )}
-      </div>
+      {/* Теги с предложениями */}
+      <TagSelector
+        availableTags={catalogs.tags.data || []}
+        suggestedTags={suggestedTags}
+        selectedTags={tags}
+        onChange={(v) => setValue("tags", v)}
+        isLoading={catalogs.tags.isLoading}
+      />
 
       {/* Сайт / ссылка */}
       <div className="space-y-2">
@@ -275,7 +337,7 @@ export function DocumentForm() {
       >
         {isSubmitting ? (
           <>
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent mr-2" />
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
             Отправка...
           </>
         ) : (
