@@ -84,7 +84,40 @@ export function DocumentForm() {
     catalogs.tags.data || []
   );
 
+  // Валидация: проверка что все выбранные значения существуют в каталогах
+  const validateCatalogValues = (
+    selectedIds: string[],
+    catalogData: { value: string; label: string }[] | undefined,
+    fieldName: string
+  ): boolean => {
+    if (!catalogData) return false;
+    const catalogIds = new Set(catalogData.map((item) => item.value));
+    const invalidIds = selectedIds.filter((id) => !catalogIds.has(id));
+    if (invalidIds.length > 0) {
+      console.error(`Недопустимые значения в поле "${fieldName}":`, invalidIds);
+      return false;
+    }
+    return true;
+  };
+
   const onSubmit = async (data: FormData) => {
+    // Строгая валидация: все значения должны существовать в каталогах
+    const validations = [
+      { ids: data.sources, catalog: catalogs.sources.data, name: "Источники" },
+      { ids: data.directions, catalog: catalogs.directions.data, name: "Направления" },
+      { ids: data.roles, catalog: catalogs.roles.data, name: "Роли" },
+      { ids: data.projects, catalog: catalogs.projects.data, name: "Проекты" },
+      { ids: data.checklists, catalog: catalogs.checklists.data, name: "Чек-листы" },
+      { ids: data.tags || [], catalog: catalogs.tags.data, name: "Теги" },
+    ];
+
+    for (const { ids, catalog, name } of validations) {
+      if (!validateCatalogValues(ids, catalog, name)) {
+        console.error(`Отправка отменена: обнаружены недопустимые значения в поле "${name}"`);
+        return;
+      }
+    }
+
     // Сохраняем ФИО при первой отправке
     if (!responsible.isLocked) {
       responsible.saveName(data.responsiblePerson);
@@ -92,12 +125,25 @@ export function DocumentForm() {
 
     setIsSubmitting(true);
     
+    // Формируем данные для отправки: только ID из каталогов
     const submitData = {
-      ...data,
+      documentName: data.documentName.trim(),
+      file: data.file,
+      responsiblePerson: data.responsiblePerson.trim(),
+      // Передаём только ID (value), без текстовых меток
+      sourceIds: data.sources,
+      directionIds: data.directions,
+      roleIds: data.roles,
+      projectIds: data.projects,
+      checklistIds: data.checklists,
+      tagIds: data.tags || [],
+      websiteUrl: data.websiteUrl?.trim() || null,
+      funPhrase: data.funPhrase?.trim() || null,
+      // Дата фиксируется автоматически в момент отправки
       submissionDate: new Date().toISOString(),
     };
     
-    console.log("Отправка данных в Bpium:", submitData);
+    console.log("Отправка данных в Bpium (только ID):", submitData);
     
     // TODO: Реальный API-вызов к Bpium
     await new Promise((resolve) => setTimeout(resolve, 1500));
