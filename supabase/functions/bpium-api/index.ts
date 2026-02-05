@@ -5,11 +5,34 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface BpiumAuthResponse {
-  token: string;
-}
+// ID каталогов в Bpium
+const CATALOG_IDS = {
+  documents: '56',      // Документы (загрузка) АТС
+  directions: '55',     // Направления АТС
+  roles: '57',          // Роли АТС
+  projects: '54',       // Проекты АТС
+  sources: '59',        // Источники АТС
+  checklists: '58',     // Чек-листы АТС (предположительно)
+  tags: '60',           // Теги АТС (предположительно)
+};
 
-interface BpiumCatalogRecord {
+// Маппинг полей для каталога документов (ID=56)
+const DOCUMENT_FIELDS = {
+  title: '2',           // Название документа
+  responsiblePerson: '3', // ФИО ответственного
+  sources: '4',         // Источники (связь)
+  directions: '5',      // Направления (связь)
+  roles: '6',           // Роли (связь)
+  projects: '10',       // Проекты (связь)
+  checklists: '11',     // Чек-листы (связь)
+  tags: '13',           // Теги (связь)
+  websiteUrl: '14',     // Ссылка
+  funPhrase: '15',      // Фраза для футболки
+  file: '16',           // Файл документа
+  submissionDate: '17', // Дата внесения
+};
+
+interface BpiumRecord {
   id: string;
   values: Record<string, unknown>;
 }
@@ -37,12 +60,12 @@ async function getBpiumToken(): Promise<string> {
     throw new Error(`Bpium auth failed: ${error}`);
   }
 
-  const data: BpiumAuthResponse = await response.json();
+  const data = await response.json();
   return data.token;
 }
 
 // Получение записей каталога
-async function fetchCatalog(token: string, catalogId: string): Promise<BpiumCatalogRecord[]> {
+async function fetchCatalog(token: string, catalogId: string): Promise<BpiumRecord[]> {
   const domain = Deno.env.get('BPIUM_DOMAIN');
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
@@ -66,7 +89,7 @@ async function createRecord(
   token: string, 
   catalogId: string, 
   values: Record<string, unknown>
-): Promise<BpiumCatalogRecord> {
+): Promise<BpiumRecord> {
   const domain = Deno.env.get('BPIUM_DOMAIN');
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
@@ -86,6 +109,14 @@ async function createRecord(
   return await response.json();
 }
 
+// Преобразование записей Bpium в формат для MultiSelect
+function transformRecords(records: BpiumRecord[]): { value: string; label: string }[] {
+  return records.map(record => ({
+    value: record.id,
+    label: String(record.values['2'] || record.id), // Поле 2 = Название
+  }));
+}
+
 serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') {
@@ -101,76 +132,58 @@ serve(async (req) => {
 
     switch (action) {
       case 'get-catalogs': {
-        // Получаем все справочные каталоги
-        // ID каталогов нужно будет настроить в секретах или передать параметрами
-        const catalogIds = {
-          sources: url.searchParams.get('sources_id'),
-          directions: url.searchParams.get('directions_id'),
-          roles: url.searchParams.get('roles_id'),
-          projects: url.searchParams.get('projects_id'),
-          checklists: url.searchParams.get('checklists_id'),
-          tags: url.searchParams.get('tags_id'),
+        // Загружаем все справочники параллельно
+        const [directionsRecords, rolesRecords, projectsRecords, sourcesRecords, checklistsRecords, tagsRecords] = 
+          await Promise.all([
+            fetchCatalog(token, CATALOG_IDS.directions),
+            fetchCatalog(token, CATALOG_IDS.roles),
+            fetchCatalog(token, CATALOG_IDS.projects),
+            fetchCatalog(token, CATALOG_IDS.sources),
+            fetchCatalog(token, CATALOG_IDS.checklists),
+            fetchCatalog(token, CATALOG_IDS.tags),
+          ]);
+
+        const result = {
+          directions: transformRecords(directionsRecords),
+          roles: transformRecords(rolesRecords),
+          projects: transformRecords(projectsRecords),
+          sources: transformRecords(sourcesRecords),
+          checklists: transformRecords(checklistsRecords),
+          tags: transformRecords(tagsRecords),
         };
 
-        const results: Record<string, { value: string; label: string }[]> = {};
-
-        for (const [key, catalogId] of Object.entries(catalogIds)) {
-          if (catalogId) {
-            const records = await fetchCatalog(token, catalogId);
-            // Преобразуем записи Bpium в формат для MultiSelect
-            // Предполагаем, что название находится в поле "2" (стандартное поле Title в Bpium)
-            results[key] = records.map(record => ({
-              value: record.id,
-              label: String(record.values['2'] || record.values['title'] || record.id),
-            }));
-          }
-        }
-
-        return new Response(JSON.stringify(results), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      case 'get-catalog': {
-        const catalogId = url.searchParams.get('catalog_id');
-        if (!catalogId) {
-          throw new Error('catalog_id is required');
-        }
-
-        const records = await fetchCatalog(token, catalogId);
-        const options = records.map(record => ({
-          value: record.id,
-          label: String(record.values['2'] || record.values['title'] || record.id),
-        }));
-
-        return new Response(JSON.stringify(options), {
+        return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       case 'submit-document': {
         const body = await req.json();
-        const catalogId = Deno.env.get('BPIUM_CATALOG_ID_DOCS_UPLOAD') || '56';
 
         // Формируем значения для записи в Bpium
-        // Структура полей зависит от конфигурации каталога в Bpium
         const values: Record<string, unknown> = {
-          // Поля будут настроены в соответствии со структурой каталога 56
-          // Примерная структура:
-          '2': body.documentName, // Название документа
-          '3': body.responsiblePerson, // ФИО ответственного
-          '4': body.sourceIds, // Источники (связь с каталогом)
-          '5': body.directionIds, // Направления
-          '6': body.roleIds, // Роли
-          '7': body.projectIds, // Проекты
-          '8': body.checklistIds, // Чек-листы
-          '9': body.tagIds, // Теги
-          '10': body.websiteUrl, // Ссылка
-          '11': body.funPhrase, // Фраза для футболки
-          '12': body.submissionDate, // Дата отправки
+          [DOCUMENT_FIELDS.title]: body.documentName,
+          [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson,
+          [DOCUMENT_FIELDS.sources]: body.sourceIds,
+          [DOCUMENT_FIELDS.directions]: body.directionIds,
+          [DOCUMENT_FIELDS.roles]: body.roleIds,
+          [DOCUMENT_FIELDS.projects]: body.projectIds,
+          [DOCUMENT_FIELDS.checklists]: body.checklistIds,
+          [DOCUMENT_FIELDS.tags]: body.tagIds || [],
+          [DOCUMENT_FIELDS.websiteUrl]: body.websiteUrl || '',
+          [DOCUMENT_FIELDS.funPhrase]: body.funPhrase || '',
+          [DOCUMENT_FIELDS.submissionDate]: body.submissionDate,
         };
 
-        const record = await createRecord(token, catalogId, values);
+        // Добавляем файл, если передан
+        if (body.file) {
+          values[DOCUMENT_FIELDS.file] = [{
+            name: body.file.name,
+            data: body.file.base64,
+          }];
+        }
+
+        const record = await createRecord(token, CATALOG_IDS.documents, values);
 
         return new Response(JSON.stringify({ success: true, recordId: record.id }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -179,7 +192,7 @@ serve(async (req) => {
 
       default:
         return new Response(
-          JSON.stringify({ error: 'Invalid action. Use: get-catalogs, get-catalog, submit-document' }),
+          JSON.stringify({ error: 'Invalid action. Use: get-catalogs, submit-document' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }

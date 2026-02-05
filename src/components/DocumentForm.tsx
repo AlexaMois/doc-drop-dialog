@@ -2,7 +2,8 @@ import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Send, CheckCircle, Sparkles, Loader2, Lock } from "lucide-react";
+import { Send, CheckCircle, Sparkles, Loader2, Lock, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +11,10 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/MultiSelect";
 import { FileUpload } from "@/components/FileUpload";
 import { TagSelector } from "@/components/TagSelector";
-import { useAllCatalogs } from "@/hooks/useBpiumCatalogs";
+import { useAllCatalogs, submitDocumentToBpium } from "@/hooks/useBpiumCatalogs";
 import { useResponsiblePerson } from "@/hooks/useResponsiblePerson";
 import { useTagSuggestions } from "@/hooks/useTagSuggestions";
+import { fileToBase64 } from "@/lib/fileUtils";
 
 const formSchema = z.object({
   documentName: z.string().min(1, "Название документа обязательно"),
@@ -113,7 +115,7 @@ export function DocumentForm() {
 
     for (const { ids, catalog, name } of validations) {
       if (!validateCatalogValues(ids, catalog, name)) {
-        console.error(`Отправка отменена: обнаружены недопустимые значения в поле "${name}"`);
+        toast.error(`Обнаружены недопустимые значения в поле "${name}"`);
         return;
       }
     }
@@ -124,32 +126,44 @@ export function DocumentForm() {
     }
 
     setIsSubmitting(true);
-    
-    // Формируем данные для отправки: только ID из каталогов
-    const submitData = {
-      documentName: data.documentName.trim(),
-      file: data.file,
-      responsiblePerson: data.responsiblePerson.trim(),
-      // Передаём только ID (value), без текстовых меток
-      sourceIds: data.sources,
-      directionIds: data.directions,
-      roleIds: data.roles,
-      projectIds: data.projects,
-      checklistIds: data.checklists,
-      tagIds: data.tags || [],
-      websiteUrl: data.websiteUrl?.trim() || null,
-      funPhrase: data.funPhrase?.trim() || null,
-      // Дата фиксируется автоматически в момент отправки
-      submissionDate: new Date().toISOString(),
-    };
-    
-    console.log("Отправка данных в Bpium (только ID):", submitData);
-    
-    // TODO: Реальный API-вызов к Bpium
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    setIsSubmitting(false);
-    setIsSubmitted(true);
+
+    try {
+      // Конвертация файла в base64
+      const fileBase64 = await fileToBase64(data.file!);
+
+      // Формируем данные для отправки в Bpium
+      const submitData = {
+        documentName: data.documentName.trim(),
+        responsiblePerson: data.responsiblePerson.trim(),
+        file: {
+          name: data.file!.name,
+          base64: fileBase64,
+        },
+        sourceIds: data.sources,
+        directionIds: data.directions,
+        roleIds: data.roles,
+        projectIds: data.projects,
+        checklistIds: data.checklists,
+        tagIds: data.tags || [],
+        websiteUrl: data.websiteUrl?.trim() || null,
+        funPhrase: data.funPhrase?.trim() || null,
+        submissionDate: new Date().toISOString(),
+      };
+
+      console.log("Отправка данных в Bpium:", { ...submitData, file: { name: submitData.file.name } });
+
+      // Отправляем в Bpium через edge function
+      const result = await submitDocumentToBpium(submitData);
+      
+      console.log("Документ успешно создан в Bpium:", result);
+      toast.success("Документ успешно отправлен!");
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error("Ошибка отправки документа:", error);
+      toast.error(error instanceof Error ? error.message : "Ошибка отправки документа");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -173,7 +187,22 @@ export function DocumentForm() {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">Загрузка данных...</p>
+        <p className="text-muted-foreground">Загрузка справочников из Bpium...</p>
+      </div>
+    );
+  }
+
+  if (catalogs.isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Ошибка загрузки справочников</h2>
+        <p className="text-muted-foreground mb-4">
+          {catalogs.error instanceof Error ? catalogs.error.message : "Не удалось подключиться к Bpium"}
+        </p>
+        <Button onClick={() => window.location.reload()} variant="outline">
+          Попробовать снова
+        </Button>
       </div>
     );
   }
