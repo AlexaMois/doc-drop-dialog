@@ -12,8 +12,9 @@ const CATALOG_IDS = {
   roles: '57',          // Роли АТС
   projects: '54',       // Проекты АТС
   sources: '59',        // Источники АТС
-  checklists: '58',     // Чек-листы АТС (предположительно)
-  tags: '60',           // Теги АТС (предположительно)
+  checklists: '58',     // Чек-листы АТС
+  tags: '60',           // Теги АТС
+  users: '3',           // Пользователи/Сотрудники
 };
 
 // Маппинг полей для каталога документов (ID=56)
@@ -178,9 +179,16 @@ serve(async (req) => {
 
           const values: Record<string, unknown> = {
             [DOCUMENT_FIELDS.title]: body.documentName || '',
-            [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson || '',
             [DOCUMENT_FIELDS.submissionDate]: new Date().toISOString().split('.')[0] + 'Z',
           };
+
+          // responsiblePerson как связь на каталог users
+          if (body.responsiblePerson) {
+            values[DOCUMENT_FIELDS.responsiblePerson] = [{
+              catalogId: CATALOG_IDS.users,
+              recordId: parseInt(body.responsiblePerson)
+            }];
+          }
 
           // Добавляем URL только если заполнен
           if (body.websiteUrl && String(body.websiteUrl).trim() !== '') {
