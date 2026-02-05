@@ -19,17 +19,15 @@ const CATALOG_IDS = {
 // Маппинг полей для каталога документов (ID=56)
 const DOCUMENT_FIELDS = {
   title: '2',           // Название документа
-  responsiblePerson: '3', // ФИО ответственного
-  sources: '4',         // Источники (связь)
-  directions: '5',      // Направления (связь)
-  roles: '6',           // Роли (связь)
-  projects: '10',       // Проекты (связь)
+  sources: '3',         // Источники (связь)
+  directions: '4',      // Направления (связь)
+  roles: '5',           // Роли (связь)
+  projects: '6',        // Проекты (связь)
+  tags: '10',           // Теги (связь)
   checklists: '11',     // Чек-листы (связь)
-  tags: '13',           // Теги (связь)
   websiteUrl: '14',     // Ссылка
   funPhrase: '15',      // Фраза для футболки
-  file: '16',           // Файл документа
-  submissionDate: '17', // Дата внесения
+  submissionDate: '16', // Дата внесения
 };
 
 interface BpiumRecord {
@@ -178,8 +176,7 @@ serve(async (req) => {
 
           const values: Record<string, unknown> = {
             [DOCUMENT_FIELDS.title]: body.documentName || '',
-            [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson || '',
-            [DOCUMENT_FIELDS.submissionDate]: body.submissionDate || new Date().toISOString(),
+            [DOCUMENT_FIELDS.submissionDate]: new Date().toISOString().split('.')[0] + 'Z',
           };
 
           // Добавляем URL только если заполнен
@@ -194,52 +191,56 @@ serve(async (req) => {
 
           console.log('=== STEP 1: Basic fields OK ===');
 
-          // Добавляем связанные поля
+          // Добавляем связанные поля в формате {catalogId, recordId}
           if (body.sourceIds && Array.isArray(body.sourceIds) && body.sourceIds.length > 0) {
-            values[DOCUMENT_FIELDS.sources] = body.sourceIds.map((id: string) => parseInt(id));
+            values[DOCUMENT_FIELDS.sources] = body.sourceIds.map((id: string) => ({
+              catalogId: CATALOG_IDS.sources,
+              recordId: parseInt(id)
+            }));
             console.log('Sources OK:', values[DOCUMENT_FIELDS.sources]);
           }
 
           if (body.directionIds && Array.isArray(body.directionIds) && body.directionIds.length > 0) {
-            values[DOCUMENT_FIELDS.directions] = body.directionIds.map((id: string) => parseInt(id));
+            values[DOCUMENT_FIELDS.directions] = body.directionIds.map((id: string) => ({
+              catalogId: CATALOG_IDS.directions,
+              recordId: parseInt(id)
+            }));
             console.log('Directions OK:', values[DOCUMENT_FIELDS.directions]);
           }
 
           if (body.roleIds && Array.isArray(body.roleIds) && body.roleIds.length > 0) {
-            values[DOCUMENT_FIELDS.roles] = body.roleIds.map((id: string) => parseInt(id));
+            values[DOCUMENT_FIELDS.roles] = body.roleIds.map((id: string) => ({
+              catalogId: CATALOG_IDS.roles,
+              recordId: parseInt(id)
+            }));
             console.log('Roles OK:', values[DOCUMENT_FIELDS.roles]);
           }
 
           if (body.projectIds && Array.isArray(body.projectIds) && body.projectIds.length > 0) {
-            values[DOCUMENT_FIELDS.projects] = body.projectIds.map((id: string) => parseInt(id));
+            values[DOCUMENT_FIELDS.projects] = body.projectIds.map((id: string) => ({
+              catalogId: CATALOG_IDS.projects,
+              recordId: parseInt(id)
+            }));
             console.log('Projects OK:', values[DOCUMENT_FIELDS.projects]);
           }
 
           if (body.checklistIds && Array.isArray(body.checklistIds) && body.checklistIds.length > 0) {
-            values[DOCUMENT_FIELDS.checklists] = body.checklistIds.map((id: string) => parseInt(id));
+            values[DOCUMENT_FIELDS.checklists] = body.checklistIds.map((id: string) => ({
+              catalogId: CATALOG_IDS.checklists,
+              recordId: parseInt(id)
+            }));
             console.log('Checklists OK:', values[DOCUMENT_FIELDS.checklists]);
           }
 
           console.log('=== STEP 2: Links OK ===');
 
-          // Теги
+          // Теги - массив чисел
           if (body.tagIds && Array.isArray(body.tagIds) && body.tagIds.length > 0) {
             values[DOCUMENT_FIELDS.tags] = body.tagIds.map((id: string) => parseInt(id));
             console.log('Tags OK:', values[DOCUMENT_FIELDS.tags]);
           }
 
           console.log('=== STEP 3: Tags OK ===');
-
-          // Файл
-          if (body.file && body.file.name && body.file.base64) {
-            values[DOCUMENT_FIELDS.file] = [{
-              name: body.file.name,
-              data: body.file.base64,
-            }];
-            console.log('File OK:', body.file.name);
-          }
-
-          console.log('=== STEP 4: File OK ===');
           console.log('=== SENDING TO BPIUM ===');
           console.log(JSON.stringify(values, null, 2));
 
