@@ -14,7 +14,7 @@ import { TagSelector } from "@/components/TagSelector";
 import { useAllCatalogs, submitDocumentToBpium } from "@/hooks/useBpiumCatalogs";
 import { useResponsiblePerson } from "@/hooks/useResponsiblePerson";
 import { useTagSuggestions } from "@/hooks/useTagSuggestions";
-import { fileToBase64 } from "@/lib/fileUtils";
+import { uploadDocumentFile } from "@/lib/storage";
 
 const formSchema = z.object({
   documentName: z.string().min(1, "Название документа обязательно"),
@@ -124,17 +124,17 @@ export function DocumentForm() {
     setIsSubmitting(true);
 
     try {
-      // Конвертация файла в base64
-      const fileBase64 = await fileToBase64(data.file!);
+      // Загружаем файл в Supabase Storage
+      console.log("Загрузка файла в хранилище...");
+      const fileUrl = await uploadDocumentFile(data.file!);
+      console.log("Файл загружен:", fileUrl);
 
       // Формируем данные для отправки в Bpium
       const submitData = {
         documentName: data.documentName.trim(),
         responsiblePerson: data.responsiblePerson.trim(),
-        file: {
-          name: data.file!.name,
-          base64: fileBase64,
-        },
+        fileUrl: fileUrl,
+        fileName: data.file!.name,
         sourceIds: data.sources,
         directionIds: data.directions,
         roleIds: data.roles,
@@ -146,7 +146,7 @@ export function DocumentForm() {
         submissionDate: new Date().toISOString(),
       };
 
-      console.log("Отправка данных в Bpium:", { ...submitData, file: { name: submitData.file.name } });
+      console.log("Отправка данных в Bpium:", submitData);
 
       // Отправляем в Bpium через edge function
       const result = await submitDocumentToBpium(submitData);
