@@ -169,24 +169,14 @@ Deno.serve(async (req) => {
       case 'submit-document': {
         const body = await req.json();
 
-        // Для полей типа "связанный объект" (object):
-        // - multiselect: массив [{ catalogId, recordId }]
-        // - singleselect: объект { catalogId, recordId }
+        // Для полей типа "связанный объект" (object) формат ВСЕГДА массив:
+        // [{ catalogId, recordId }, ...]
+        // Даже для single-select Bpium ожидает массив с одним элементом
         const toLinkedRecords = (ids: string[] | undefined, catalogId: string) => {
           if (!ids || !Array.isArray(ids) || ids.length === 0) {
             return [];
           }
           return ids.map(id => ({ catalogId, recordId: id }));
-        };
-
-        const toSingleLinkedRecord = (ids: string[] | undefined, catalogId: string) => {
-          if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return null;
-          }
-          if (ids.length > 1) {
-            throw new Error('Поле "Источник" не поддерживает множественный выбор');
-          }
-          return { catalogId, recordId: ids[0] };
         };
 
         // Формируем значения для записи
@@ -196,9 +186,9 @@ Deno.serve(async (req) => {
         if (body.documentName) values[DOCUMENT_FIELDS.title] = body.documentName;
         if (body.responsiblePerson) values[DOCUMENT_FIELDS.responsiblePerson] = body.responsiblePerson;
 
-        // Связанные объекты (object type)
-        const source = toSingleLinkedRecord(body.sourceIds, CATALOG_IDS.sources);
-        if (source) values[DOCUMENT_FIELDS.sources] = source;
+        // Связанные объекты (object type) - ВСЕ передаются как массивы
+        const sources = toLinkedRecords(body.sourceIds, CATALOG_IDS.sources);
+        if (sources.length > 0) values[DOCUMENT_FIELDS.sources] = sources;
         
         const directions = toLinkedRecords(body.directionIds, CATALOG_IDS.directions);
         if (directions.length > 0) values[DOCUMENT_FIELDS.directions] = directions;
