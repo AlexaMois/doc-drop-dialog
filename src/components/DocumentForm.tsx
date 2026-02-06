@@ -24,7 +24,7 @@ const formSchema = z.object({
   directions: z.array(z.string()).min(1, "Выберите хотя бы одно направление"),
   roles: z.array(z.string()).min(1, "Выберите хотя бы одну роль"),
   projects: z.array(z.string()).min(1, "Выберите хотя бы один проект"),
-  checklists: z.array(z.string()).optional(),
+  checklists: z.array(z.string()).min(1, "Выберите хотя бы один чек-лист"),
   tags: z.array(z.string()).optional(),
   websiteUrl: z.string().url("Введите корректный URL").optional().or(z.literal("")),
   funPhrase: z.string().optional(),
@@ -79,12 +79,11 @@ export function DocumentForm() {
   const checklists = watch("checklists");
   const tags = watch("tags") || [];
 
-  // Предложения тегов на основе названия, файла и выбранных направлений
+  // Предложения тегов на основе названия и файла
   const suggestedTags = useTagSuggestions(
     documentName,
     file?.name,
-    catalogs.tags.data || [],
-    directions
+    catalogs.tags.data || []
   );
 
   // Валидация: проверка что все выбранные значения существуют в каталогах
@@ -354,7 +353,7 @@ export function DocumentForm() {
       {/* Чек-листы */}
       <div className="space-y-2">
         <Label>
-          Чек-листы
+          Чек-листы <span className="text-destructive">*</span>
         </Label>
         <MultiSelect
           options={catalogs.checklists.data || []}
