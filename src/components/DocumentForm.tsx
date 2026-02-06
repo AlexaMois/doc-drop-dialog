@@ -13,7 +13,7 @@ import { FileUpload } from "@/components/FileUpload";
 import { TagSelector } from "@/components/TagSelector";
 import { useAllCatalogs, submitDocumentToBpium } from "@/hooks/useBpiumCatalogs";
 import { useResponsiblePerson } from "@/hooks/useResponsiblePerson";
-import { useTagSuggestions } from "@/hooks/useTagSuggestions";
+import { useAiTagSuggestions } from "@/hooks/useAiTagSuggestions";
 import { uploadDocumentFile } from "@/lib/storage";
 
 const formSchema = z.object({
@@ -76,12 +76,20 @@ export function DocumentForm() {
   const projects = watch("projects");
   const tags = watch("tags") || [];
 
-  // Предложения тегов на основе названия и файла
-  const suggestedTags = useTagSuggestions(
+  // AI-подсказки тегов на основе всех введённых данных
+  const { suggestedTags, isLoading: isAiTagsLoading } = useAiTagSuggestions({
     documentName,
-    file?.name,
-    catalogs.tags.data || []
-  );
+    fileName: file?.name,
+    sources: catalogs.sources.data || [],
+    directions: catalogs.directions.data || [],
+    roles: catalogs.roles.data || [],
+    projects: catalogs.projects.data || [],
+    availableTags: catalogs.tags.data || [],
+    selectedSourceIds: sources,
+    selectedDirectionIds: directions,
+    selectedRoleIds: roles,
+    selectedProjectIds: projects,
+  });
 
   // Валидация: проверка что все выбранные значения существуют в каталогах
   const validateCatalogValues = (
@@ -346,13 +354,14 @@ export function DocumentForm() {
       </div>
 
 
-      {/* Теги с предложениями */}
+      {/* Теги с AI-подсказками */}
       <TagSelector
         availableTags={catalogs.tags.data || []}
         suggestedTags={suggestedTags}
         selectedTags={tags}
         onChange={(v) => setValue("tags", v)}
         isLoading={catalogs.tags.isLoading}
+        isAiLoading={isAiTagsLoading}
       />
 
       {/* Сайт / ссылка */}

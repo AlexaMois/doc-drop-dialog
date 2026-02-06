@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, Lightbulb } from "lucide-react";
+import { Check, Lightbulb, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ interface TagSelectorProps {
   selectedTags: string[];
   onChange: (selected: string[]) => void;
   isLoading?: boolean;
+  isAiLoading?: boolean;
 }
 
 export function TagSelector({
@@ -19,6 +20,7 @@ export function TagSelector({
   selectedTags,
   onChange,
   isLoading,
+  isAiLoading,
 }: TagSelectorProps) {
   const handleToggle = (tagValue: string) => {
     if (selectedTags.includes(tagValue)) {
@@ -43,34 +45,45 @@ export function TagSelector({
     <div className="space-y-3">
       <Label>Теги (необязательно)</Label>
       
-      {/* Предложенные теги */}
-      {hasSuggestions && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Lightbulb className="h-4 w-4 text-primary" />
-            <span>Рекомендуемые теги:</span>
+      {/* AI-подсказки тегов */}
+      {(hasSuggestions || isAiLoading) && (
+        <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
+          <div className="flex items-center gap-2 text-sm">
+            {isAiLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                <span className="text-muted-foreground">AI анализирует документ...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="font-medium text-primary">AI рекомендует:</span>
+              </>
+            )}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {suggestedTags.map((tag) => {
-              const isSelected = selectedTags.includes(tag.value);
-              return (
-                <Badge
-                  key={tag.value}
-                  variant={isSelected ? "default" : "outline"}
-                  className={cn(
-                    "cursor-pointer transition-all hover:scale-105",
-                    isSelected
-                      ? "bg-primary text-primary-foreground"
-                      : "border-primary/50 text-primary hover:bg-primary/10"
-                  )}
-                  onClick={() => handleToggle(tag.value)}
-                >
-                  {isSelected && <Check className="h-3 w-3 mr-1" />}
-                  {tag.label}
-                </Badge>
-              );
-            })}
-          </div>
+          {!isAiLoading && hasSuggestions && (
+            <div className="flex flex-wrap gap-2">
+              {suggestedTags.map((tag) => {
+                const isSelected = selectedTags.includes(tag.value);
+                return (
+                  <Badge
+                    key={tag.value}
+                    variant={isSelected ? "default" : "outline"}
+                    className={cn(
+                      "cursor-pointer transition-all hover:scale-105",
+                      isSelected
+                        ? "bg-primary text-primary-foreground"
+                        : "border-primary/50 text-primary hover:bg-primary/10"
+                    )}
+                    onClick={() => handleToggle(tag.value)}
+                  >
+                    {isSelected && <Check className="h-3 w-3 mr-1" />}
+                    {tag.label}
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
