@@ -1,3 +1,4 @@
+// Bpium API Integration - v2 with Basic Auth
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -37,8 +38,8 @@ interface BpiumRecord {
   values: Record<string, unknown>;
 }
 
-// Получение токена авторизации Bpium
-async function getBpiumToken(): Promise<string> {
+// Создание заголовков для Basic авторизации Bpium
+function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string } {
   const domain = Deno.env.get('BPIUM_DOMAIN');
   const login = Deno.env.get('BPIUM_LOGIN');
   const password = Deno.env.get('BPIUM_PASSWORD');
@@ -47,33 +48,22 @@ async function getBpiumToken(): Promise<string> {
     throw new Error('Bpium credentials not configured');
   }
 
-  const response = await fetch(`${domain}/api/v1/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ login, password }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Bpium auth failed: ${error}`);
-  }
-
-  const data = await response.json();
-  return data.token;
+  // Bpium использует Basic Authentication
+  const credentials = btoa(`${login}:${password}`);
+  
+  return {
+    'Authorization': `Basic ${credentials}`,
+    'Content-Type': 'application/json',
+  };
 }
 
 // Получение записей каталога
-async function fetchCatalog(token: string, catalogId: string): Promise<BpiumRecord[]> {
+async function fetchCatalog(headers: { Authorization: string; 'Content-Type': string }, catalogId: string): Promise<BpiumRecord[]> {
   const domain = Deno.env.get('BPIUM_DOMAIN');
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -86,7 +76,7 @@ async function fetchCatalog(token: string, catalogId: string): Promise<BpiumReco
 
 // Создание записи в каталоге
 async function createRecord(
-  token: string, 
+  headers: { Authorization: string; 'Content-Type': string }, 
   catalogId: string, 
   values: Record<string, unknown>
 ): Promise<BpiumRecord> {
@@ -94,10 +84,7 @@ async function createRecord(
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({ values }),
   });
 
@@ -127,20 +114,20 @@ serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
-    // Получаем токен для всех операций
-    const token = await getBpiumToken();
+    // Получаем заголовки авторизации (Basic Auth)
+    const authHeaders = getBpiumAuthHeaders();
 
     switch (action) {
       case 'get-catalogs': {
         // Загружаем все справочники параллельно
         const [directionsRecords, rolesRecords, projectsRecords, sourcesRecords, checklistsRecords, tagsRecords] = 
           await Promise.all([
-            fetchCatalog(token, CATALOG_IDS.directions),
-            fetchCatalog(token, CATALOG_IDS.roles),
-            fetchCatalog(token, CATALOG_IDS.projects),
-            fetchCatalog(token, CATALOG_IDS.sources),
-            fetchCatalog(token, CATALOG_IDS.checklists),
-            fetchCatalog(token, CATALOG_IDS.tags),
+            fetchCatalog(authHeaders, CATALOG_IDS.directions),
+            fetchCatalog(authHeaders, CATALOG_IDS.roles),
+            fetchCatalog(authHeaders, CATALOG_IDS.projects),
+            fetchCatalog(authHeaders, CATALOG_IDS.sources),
+            fetchCatalog(authHeaders, CATALOG_IDS.checklists),
+            fetchCatalog(authHeaders, CATALOG_IDS.tags),
           ]);
 
         const result = {
@@ -183,7 +170,7 @@ serve(async (req) => {
           }];
         }
 
-        const record = await createRecord(token, CATALOG_IDS.documents, values);
+        const record = await createRecord(authHeaders, CATALOG_IDS.documents, values);
 
         return new Response(JSON.stringify({ success: true, recordId: record.id }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
