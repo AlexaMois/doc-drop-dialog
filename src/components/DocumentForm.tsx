@@ -74,19 +74,19 @@ export function DocumentForm() {
   const projects = watch("projects");
   const tags = watch("tags") || [];
 
-  // AI-подсказки тегов на основе всех введённых данных
+  // AI-подсказки тегов на основе всех введённых данных (передаём labels)
+  const getLabels = (ids: string[], options: { value: string; label: string }[] | undefined) => {
+    if (!options) return [];
+    return ids.map(id => options.find(o => o.value === id)?.label).filter((l): l is string => !!l);
+  };
+
   const { suggestedTags, isLoading: isAiTagsLoading } = useAiTagSuggestions({
     documentName,
     fileName: file?.name,
-    sources: catalogs.sources.data || [],
-    directions: catalogs.directions.data || [],
-    roles: catalogs.roles.data || [],
-    projects: catalogs.projects.data || [],
-    availableTags: catalogs.tags.data || [],
-    selectedSourceIds: sources,
-    selectedDirectionIds: directions,
-    selectedRoleIds: roles,
-    selectedProjectIds: projects,
+    sources: getLabels(sources, catalogs.sources.data),
+    directions: getLabels(directions, catalogs.directions.data),
+    roles: getLabels(roles, catalogs.roles.data),
+    projects: getLabels(projects, catalogs.projects.data),
   });
 
   // Валидация: проверка что все выбранные значения существуют в каталогах
@@ -355,11 +355,9 @@ export function DocumentForm() {
 
       {/* Теги с AI-подсказками */}
       <TagSelector
-        availableTags={catalogs.tags.data || []}
         suggestedTags={suggestedTags}
         selectedTags={tags}
         onChange={(v) => setValue("tags", v)}
-        isLoading={catalogs.tags.isLoading}
         isAiLoading={isAiTagsLoading}
       />
 
