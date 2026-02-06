@@ -2,7 +2,7 @@ import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Send, CheckCircle, Sparkles, Loader2, Lock, AlertCircle } from "lucide-react";
+import { Send, CheckCircle, Loader2, Lock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/MultiSelect";
 import { FileUpload } from "@/components/FileUpload";
 import { TagSelector } from "@/components/TagSelector";
+import { QuizGame } from "@/components/QuizGame";
 import { useAllCatalogs, submitDocumentToBpium } from "@/hooks/useBpiumCatalogs";
 import { useResponsiblePerson } from "@/hooks/useResponsiblePerson";
 import { useAiTagSuggestions } from "@/hooks/useAiTagSuggestions";
@@ -25,8 +26,6 @@ const formSchema = z.object({
   roles: z.array(z.string()).min(1, "Выберите хотя бы одну роль"),
   projects: z.array(z.string()).min(1, "Выберите хотя бы один проект"),
   tags: z.array(z.string()).optional(),
-  websiteUrl: z.string().url("Введите корректный URL").optional().or(z.literal("")),
-  funPhrase: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -34,6 +33,7 @@ type FormData = z.infer<typeof formSchema>;
 export function DocumentForm() {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [quizPassed, setQuizPassed] = React.useState(false);
   
   const catalogs = useAllCatalogs();
   const responsible = useResponsiblePerson();
@@ -56,8 +56,6 @@ export function DocumentForm() {
       roles: [],
       projects: [],
       tags: [],
-      websiteUrl: "",
-      funPhrase: "",
     },
   });
 
@@ -149,8 +147,8 @@ export function DocumentForm() {
         projectIds: data.projects,
         checklistIds: [], // Чек-листы убраны из формы
         tagIds: data.tags || [],
-        websiteUrl: data.websiteUrl?.trim() || null,
-        funPhrase: data.funPhrase?.trim() || null,
+        websiteUrl: null,
+        funPhrase: null,
         submissionDate: new Date().toISOString(),
       };
 
@@ -180,10 +178,9 @@ export function DocumentForm() {
       roles: [],
       projects: [],
       tags: [],
-      websiteUrl: "",
-      funPhrase: "",
     });
     setIsSubmitted(false);
+    setQuizPassed(false);
   };
 
   if (responsible.isLoading || catalogs.isLoading) {
@@ -364,26 +361,15 @@ export function DocumentForm() {
         isAiLoading={isAiTagsLoading}
       />
 
-      {/* Юмор */}
-      <div className="space-y-2 pt-4 border-t border-border">
-        <Label htmlFor="funPhrase" className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
-          Фраза для футболки (по желанию)
-        </Label>
-        <Input
-          id="funPhrase"
-          placeholder="Ваш креатив здесь..."
-          {...register("funPhrase")}
-          className="bg-card"
-        />
-      </div>
+      {/* Мини-викторина */}
+      <QuizGame onCorrectAnswer={setQuizPassed} />
 
       {/* Кнопка отправки */}
       <Button
         type="submit"
         size="lg"
         className="w-full"
-        disabled={isSubmitting}
+        disabled={isSubmitting || !quizPassed}
       >
         {isSubmitting ? (
           <>
