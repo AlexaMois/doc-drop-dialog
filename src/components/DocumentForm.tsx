@@ -364,20 +364,6 @@ export function DocumentForm() {
         isAiLoading={isAiTagsLoading}
       />
 
-      {/* Сайт / ссылка */}
-      <div className="space-y-2">
-        <Label htmlFor="websiteUrl">Сайт / ссылка</Label>
-        <Input
-          id="websiteUrl"
-          placeholder="https://example.com"
-          {...register("websiteUrl")}
-          className="bg-card"
-        />
-        {errors.websiteUrl && (
-          <p className="text-sm text-destructive">{errors.websiteUrl.message}</p>
-        )}
-      </div>
-
       {/* Юмор */}
       <div className="space-y-2 pt-4 border-t border-border">
         <Label htmlFor="funPhrase" className="flex items-center gap-2">
