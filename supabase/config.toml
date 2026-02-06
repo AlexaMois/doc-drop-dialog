@@ -2,3 +2,6 @@ project_id = "hombyvzvkdqwjwjnxdlx"
 
 [functions.bpium-api]
 verify_jwt = false
+
+[functions.suggest-tags]
+verify_jwt = false
