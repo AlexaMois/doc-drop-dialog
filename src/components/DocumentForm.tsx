@@ -20,7 +20,7 @@ const formSchema = z.object({
   documentName: z.string().min(1, "Название документа обязательно"),
   file: z.instanceof(File, { message: "Файл документа обязателен" }).nullable().refine((val) => val !== null, "Файл документа обязателен"),
   responsiblePerson: z.string().min(1, "ФИО ответственного обязательно"),
-  sources: z.array(z.string()).min(1, "Выберите источник").max(1, "Выберите один источник"),
+  sources: z.array(z.string()).min(1, "Выберите хотя бы один источник"),
   directions: z.array(z.string()).min(1, "Выберите хотя бы одно направление"),
   roles: z.array(z.string()).min(1, "Выберите хотя бы одну роль"),
   projects: z.array(z.string()).min(1, "Выберите хотя бы один проект"),
@@ -290,8 +290,7 @@ export function DocumentForm() {
           options={catalogs.sources.data || []}
           selected={sources}
           onChange={(v) => setValue("sources", v, { shouldValidate: true })}
-          placeholder="Выберите источник"
-          maxSelected={1}
+          placeholder="Выберите источники"
         />
         {errors.sources && (
           <p className="text-sm text-destructive">{errors.sources.message}</p>
