@@ -13,6 +13,7 @@ interface CatalogsResponse {
   projects: CatalogOption[];
   checklists: CatalogOption[];
   tags: CatalogOption[];
+  tagsAreFallback?: boolean; // true если теги — демо и не должны отправляться в Bpium
 }
 
 // Запрос к edge function для получения всех каталогов
@@ -54,6 +55,7 @@ export function useAllCatalogs() {
     projects: { data: query.data?.projects, isLoading: query.isLoading },
     checklists: { data: query.data?.checklists, isLoading: query.isLoading },
     tags: { data: query.data?.tags, isLoading: query.isLoading },
+    tagsAreFallback: query.data?.tagsAreFallback ?? false,
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,

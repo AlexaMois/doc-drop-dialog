@@ -166,12 +166,16 @@ Deno.serve(async (req) => {
         const catalogInfo = await fetchCatalogInfo(authHeaders, CATALOG_IDS.documents) as { fields: Array<{ id: string; config?: { items?: Array<{ id: string; name: string }> } }> };
         const tagsField = catalogInfo.fields?.find(f => f.id === '14');
         const tagsItems = tagsField?.config?.items || [];
-        const tags = tagsItems.length > 0 
-          ? tagsItems.map((item: { id: string; name: string }) => ({
+        
+        // Флаг показывает, используются ли реальные теги из Bpium или fallback
+        const usingFallbackTags = tagsItems.length === 0;
+        
+        const tags = usingFallbackTags 
+          ? FALLBACK_TAGS
+          : tagsItems.map((item: { id: string; name: string }) => ({
               value: item.id,
               label: item.name,
-            }))
-          : FALLBACK_TAGS;
+            }));
 
         const result = {
           directions: transformRecords(directionsRecords),
@@ -180,6 +184,8 @@ Deno.serve(async (req) => {
           sources: transformRecords(sourcesRecords),
           checklists: [], // Нет отдельного каталога чек-листов
           tags: tags,
+          // Сообщаем клиенту, что теги — демо и не должны отправляться в Bpium
+          tagsAreFallback: usingFallbackTags,
         };
 
         return new Response(JSON.stringify(result), {
