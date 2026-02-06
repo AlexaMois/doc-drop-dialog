@@ -17,13 +17,6 @@ interface CatalogsResponse {
 
 // Запрос к edge function для получения всех каталогов
 async function fetchAllCatalogs(): Promise<CatalogsResponse> {
-  const { data, error } = await supabase.functions.invoke('bpium-api', {
-    body: null,
-    method: 'GET',
-  });
-
-  // supabase.functions.invoke не поддерживает query params напрямую,
-  // используем fetch с правильным URL
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   
