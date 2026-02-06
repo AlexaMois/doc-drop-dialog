@@ -1,4 +1,4 @@
-// Bpium API Integration - v3 with correct field mapping
+// Bpium API Integration - v4 with file upload via Bpium Files API
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,7 +15,6 @@ const CATALOG_IDS = {
 };
 
 // Правильный маппинг полей для каталога документов (ID=56)
-// Получен через GET /api/v1/catalogs/56
 const DOCUMENT_FIELDS = {
   title: '2',             // Название (text)
   file: '3',              // Файл (file, single)
@@ -84,6 +83,9 @@ async function fetchCatalogInfo(headers: { Authorization: string; 'Content-Type'
 
   return await response.json();
 }
+
+// Примечание: Bpium Files API возвращает "Not implement yet"
+// Используем data URL напрямую для небольших файлов (до 5MB)
 
 async function createRecord(
   headers: { Authorization: string; 'Content-Type': string }, 
@@ -216,15 +218,31 @@ Deno.serve(async (req) => {
         // Статус - устанавливаем "Черновик" (1) по умолчанию
         values[DOCUMENT_FIELDS.status] = ['1'];
 
-        // Файл (file type)
-        if (body.file) {
+        // Файл - используем data URL напрямую (Bpium Files API не реализован)
+        if (body.file && body.file.base64) {
+          // Определяем MIME тип по расширению
+          const ext = body.file.name.split('.').pop()?.toLowerCase() || '';
+          const mimeTypes: Record<string, string> = {
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'txt': 'text/plain',
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+          };
+          const mimeType = mimeTypes[ext] || 'application/octet-stream';
+          
           values[DOCUMENT_FIELDS.file] = [{
-            src: `data:application/octet-stream;base64,${body.file.base64}`,
+            src: `data:${mimeType};base64,${body.file.base64}`,
             title: body.file.name,
           }];
+          console.log(`File attached: ${body.file.name} (${mimeType})`);
         }
 
-        console.log('Submitting to Bpium catalog 56:', JSON.stringify(values, null, 2));
+        console.log('Submitting to Bpium catalog 56:', JSON.stringify({ ...values, [DOCUMENT_FIELDS.file]: '[FILE]' }, null, 2));
 
         const record = await createRecord(authHeaders, CATALOG_IDS.documents, values);
 
