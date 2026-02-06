@@ -212,6 +212,9 @@ export function DocumentForm() {
         <div className="p-4 bg-accent rounded-full mb-6">
           <CheckCircle className="h-12 w-12 text-primary" />
         </div>
+        <h1 className="text-4xl md:text-5xl font-bold text-primary mb-4">
+          ТЫ МОЛОДЕЦ!
+        </h1>
         <h2 className="text-2xl font-semibold mb-2">Документ принят!</h2>
         <p className="text-muted-foreground mb-6">
           Документ принят и отправлен на проверку
