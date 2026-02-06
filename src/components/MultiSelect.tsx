@@ -30,6 +30,8 @@ interface MultiSelectProps {
   searchPlaceholder?: string;
   emptyMessage?: string;
   className?: string;
+  /** Максимальное количество выбранных элементов (например, 1 для одиночного выбора) */
+  maxSelected?: number;
 }
 
 export function MultiSelect({
@@ -40,15 +42,28 @@ export function MultiSelect({
   searchPlaceholder = "Поиск...",
   emptyMessage = "Ничего не найдено",
   className,
+  maxSelected,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false);
 
   const handleSelect = (value: string) => {
     if (selected.includes(value)) {
       onChange(selected.filter((item) => item !== value));
-    } else {
-      onChange([...selected, value]);
+      return;
     }
+
+    // Одиночный выбор через MultiSelect (нужно для полей, где API не принимает multiselect)
+    if (maxSelected === 1) {
+      onChange([value]);
+      setOpen(false);
+      return;
+    }
+
+    if (typeof maxSelected === "number" && selected.length >= maxSelected) {
+      return;
+    }
+
+    onChange([...selected, value]);
   };
 
   const handleRemove = (value: string, e: React.MouseEvent) => {
