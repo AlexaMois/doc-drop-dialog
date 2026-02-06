@@ -64,7 +64,8 @@ export function useAllCatalogs() {
 export async function submitDocumentToBpium(data: {
   documentName: string;
   responsiblePerson: string;
-  file: { name: string; base64: string };
+  fileUrl: string;
+  fileName: string;
   sourceIds: string[];
   directionIds: string[];
   roleIds: string[];
