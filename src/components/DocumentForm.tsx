@@ -112,8 +112,7 @@ export function DocumentForm() {
       { ids: data.directions, catalog: catalogs.directions.data, name: "Направления" },
       { ids: data.roles, catalog: catalogs.roles.data, name: "Роли" },
       { ids: data.projects, catalog: catalogs.projects.data, name: "Проекты" },
-      // Теги валидируем только если они реальные (не fallback)
-      ...(!catalogs.tagsAreFallback ? [{ ids: data.tags || [], catalog: catalogs.tags.data, name: "Теги" }] : []),
+      // Теги теперь свободный текст от AI, не валидируем
     ];
 
     for (const { ids, catalog, name } of validations) {
@@ -147,10 +146,8 @@ export function DocumentForm() {
         roleIds: data.roles,
         projectIds: data.projects,
         checklistIds: [], // Чек-листы убраны из формы
-        // Если теги fallback (демо), не отправляем их в Bpium
-        tagIds: catalogs.tagsAreFallback ? [] : (data.tags || []),
+        tags: data.tags || [], // AI-generated tag names
         websiteUrl: null,
-        funPhrase: null,
         submissionDate: new Date().toISOString(),
       };
 
