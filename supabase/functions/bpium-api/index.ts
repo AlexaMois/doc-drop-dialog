@@ -144,13 +144,34 @@ Deno.serve(async (req) => {
           ]);
 
         // Теги загружаются из структуры каталога (поле 14 - checkboxes)
+        // Если в Bpium теги не настроены, используем тестовый набор
+        const FALLBACK_TAGS = [
+          { value: "1", label: "БДД" },
+          { value: "2", label: "Охрана труда" },
+          { value: "3", label: "Пожарная безопасность" },
+          { value: "4", label: "Инструкция" },
+          { value: "5", label: "Положение" },
+          { value: "6", label: "Приказ" },
+          { value: "7", label: "Памятка" },
+          { value: "8", label: "Регламент" },
+          { value: "9", label: "Водитель" },
+          { value: "10", label: "Механик" },
+          { value: "11", label: "ГСМ" },
+          { value: "12", label: "Медосмотр" },
+          { value: "13", label: "Обучение" },
+          { value: "14", label: "Аттестация" },
+          { value: "15", label: "Проверка" },
+        ];
+
         const catalogInfo = await fetchCatalogInfo(authHeaders, CATALOG_IDS.documents) as { fields: Array<{ id: string; config?: { items?: Array<{ id: string; name: string }> } }> };
         const tagsField = catalogInfo.fields?.find(f => f.id === '14');
         const tagsItems = tagsField?.config?.items || [];
-        const tags = tagsItems.map((item: { id: string; name: string }) => ({
-          value: item.id,
-          label: item.name,
-        }));
+        const tags = tagsItems.length > 0 
+          ? tagsItems.map((item: { id: string; name: string }) => ({
+              value: item.id,
+              label: item.name,
+            }))
+          : FALLBACK_TAGS;
 
         const result = {
           directions: transformRecords(directionsRecords),
