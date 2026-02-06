@@ -169,12 +169,24 @@ Deno.serve(async (req) => {
       case 'submit-document': {
         const body = await req.json();
 
-        // Для полей типа "связанный объект" (object) формат: [{catalogId, recordId}]
+        // Для полей типа "связанный объект" (object):
+        // - multiselect: массив [{ catalogId, recordId }]
+        // - singleselect: объект { catalogId, recordId }
         const toLinkedRecords = (ids: string[] | undefined, catalogId: string) => {
           if (!ids || !Array.isArray(ids) || ids.length === 0) {
             return [];
           }
           return ids.map(id => ({ catalogId, recordId: id }));
+        };
+
+        const toSingleLinkedRecord = (ids: string[] | undefined, catalogId: string) => {
+          if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return null;
+          }
+          if (ids.length > 1) {
+            throw new Error('Поле "Источник" не поддерживает множественный выбор');
+          }
+          return { catalogId, recordId: ids[0] };
         };
 
         // Формируем значения для записи
@@ -185,8 +197,8 @@ Deno.serve(async (req) => {
         if (body.responsiblePerson) values[DOCUMENT_FIELDS.responsiblePerson] = body.responsiblePerson;
 
         // Связанные объекты (object type)
-        const sources = toLinkedRecords(body.sourceIds, CATALOG_IDS.sources);
-        if (sources.length > 0) values[DOCUMENT_FIELDS.sources] = sources;
+        const source = toSingleLinkedRecord(body.sourceIds, CATALOG_IDS.sources);
+        if (source) values[DOCUMENT_FIELDS.sources] = source;
         
         const directions = toLinkedRecords(body.directionIds, CATALOG_IDS.directions);
         if (directions.length > 0) values[DOCUMENT_FIELDS.directions] = directions;
