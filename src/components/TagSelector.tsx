@@ -1,52 +1,61 @@
 import * as React from "react";
-import { Check, Lightbulb, Sparkles, Loader2 } from "lucide-react";
+import { Check, X, Sparkles, Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import type { CatalogOption } from "@/hooks/useBpiumCatalogs";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface TagSelectorProps {
-  availableTags: CatalogOption[];
-  suggestedTags: CatalogOption[];
-  selectedTags: string[];
+  suggestedTags: string[];  // AI-suggested tag names
+  selectedTags: string[];   // User-selected tag names
   onChange: (selected: string[]) => void;
-  isLoading?: boolean;
   isAiLoading?: boolean;
 }
 
 export function TagSelector({
-  availableTags,
   suggestedTags,
   selectedTags,
   onChange,
-  isLoading,
   isAiLoading,
 }: TagSelectorProps) {
-  const handleToggle = (tagValue: string) => {
-    if (selectedTags.includes(tagValue)) {
-      onChange(selectedTags.filter((t) => t !== tagValue));
-    } else {
-      onChange([...selectedTags, tagValue]);
+  const [customTag, setCustomTag] = React.useState("");
+
+  const handleAddTag = (tag: string) => {
+    const trimmedTag = tag.trim();
+    if (trimmedTag && !selectedTags.includes(trimmedTag)) {
+      onChange([...selectedTags, trimmedTag]);
+    }
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    onChange(selectedTags.filter((t) => t !== tag));
+  };
+
+  const handleAddCustomTag = () => {
+    if (customTag.trim()) {
+      handleAddTag(customTag.trim());
+      setCustomTag("");
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddCustomTag();
     }
   };
 
   const hasSuggestions = suggestedTags.length > 0;
-
-  if (isLoading) {
-    return (
-      <div className="space-y-2">
-        <Label>Теги</Label>
-        <div className="h-20 bg-muted/50 rounded-lg animate-pulse" />
-      </div>
-    );
-  }
+  // Фильтруем предложенные теги, которые ещё не выбраны
+  const availableSuggestions = suggestedTags.filter(tag => !selectedTags.includes(tag));
 
   return (
     <div className="space-y-3">
-      <Label>Теги (необязательно)</Label>
+      <Label>Теги (генерируются AI)</Label>
       
       {/* AI-подсказки тегов */}
-      {(hasSuggestions || isAiLoading) && (
+      {(availableSuggestions.length > 0 || isAiLoading) && (
         <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
           <div className="flex items-center gap-2 text-sm">
             {isAiLoading ? (
@@ -61,64 +70,69 @@ export function TagSelector({
               </>
             )}
           </div>
-          {!isAiLoading && hasSuggestions && (
+          {!isAiLoading && availableSuggestions.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {suggestedTags.map((tag) => {
-                const isSelected = selectedTags.includes(tag.value);
-                return (
-                  <Badge
-                    key={tag.value}
-                    variant={isSelected ? "default" : "outline"}
-                    className={cn(
-                      "cursor-pointer transition-all hover:scale-105",
-                      isSelected
-                        ? "bg-primary text-primary-foreground"
-                        : "border-primary/50 text-primary hover:bg-primary/10"
-                    )}
-                    onClick={() => handleToggle(tag.value)}
-                  >
-                    {isSelected && <Check className="h-3 w-3 mr-1" />}
-                    {tag.label}
-                  </Badge>
-                );
-              })}
+              {availableSuggestions.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant="outline"
+                  className="cursor-pointer transition-all hover:scale-105 border-primary/50 text-primary hover:bg-primary/10"
+                  onClick={() => handleAddTag(tag)}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  {tag}
+                </Badge>
+              ))}
             </div>
           )}
         </div>
       )}
 
-      {/* Все доступные теги */}
-      <div className="space-y-2">
-        {hasSuggestions && (
-          <span className="text-sm text-muted-foreground">Все теги:</span>
-        )}
-        <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg max-h-40 overflow-y-auto">
-          {availableTags.map((tag) => {
-            const isSelected = selectedTags.includes(tag.value);
-            const isSuggested = suggestedTags.some((s) => s.value === tag.value);
-            
-            return (
+      {/* Выбранные теги */}
+      {selectedTags.length > 0 && (
+        <div className="space-y-2">
+          <span className="text-sm text-muted-foreground">Выбранные теги:</span>
+          <div className="flex flex-wrap gap-2">
+            {selectedTags.map((tag) => (
               <Badge
-                key={tag.value}
-                variant={isSelected ? "default" : "secondary"}
-                className={cn(
-                  "cursor-pointer transition-all hover:scale-105",
-                  isSelected && "bg-primary text-primary-foreground",
-                  !isSelected && isSuggested && "ring-1 ring-primary/30"
-                )}
-                onClick={() => handleToggle(tag.value)}
+                key={tag}
+                variant="default"
+                className="bg-primary text-primary-foreground"
               >
-                {isSelected && <Check className="h-3 w-3 mr-1" />}
-                {tag.label}
+                {tag}
+                <X 
+                  className="h-3 w-3 ml-1 cursor-pointer hover:opacity-70" 
+                  onClick={() => handleRemoveTag(tag)}
+                />
               </Badge>
-            );
-          })}
+            ))}
+          </div>
         </div>
+      )}
+
+      {/* Добавление своего тега */}
+      <div className="flex gap-2">
+        <Input
+          placeholder="Добавить свой тег..."
+          value={customTag}
+          onChange={(e) => setCustomTag(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="flex-1 bg-card"
+        />
+        <Button 
+          type="button" 
+          variant="outline" 
+          size="icon"
+          onClick={handleAddCustomTag}
+          disabled={!customTag.trim()}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
       </div>
 
       {selectedTags.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Выбрано тегов: {selectedTags.length}
+          Теги будут отправлены в Bpium: {selectedTags.join(", ")}
         </p>
       )}
     </div>
