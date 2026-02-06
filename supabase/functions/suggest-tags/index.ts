@@ -1,4 +1,4 @@
-// AI-powered tag suggestions for document uploads
+// AI-powered tag suggestions using Perplexity API
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,9 +23,9 @@ Deno.serve(async (req) => {
   try {
     const body: TagSuggestionRequest = await req.json();
     
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
+    if (!PERPLEXITY_API_KEY) {
+      throw new Error("PERPLEXITY_API_KEY is not configured");
     }
 
     // Если нет данных для анализа, возвращаем пустой массив
@@ -66,19 +66,19 @@ ${availableTagsList}
 Верни ТОЛЬКО массив ID тегов в формате JSON, например: ["1", "3", "7"]
 Если подходящих тегов нет, верни пустой массив: []`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "sonar",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: context },
         ],
-        temperature: 0.3, // Низкая температура для более предсказуемых результатов
+        temperature: 0.2,
       }),
     });
 
@@ -89,15 +89,15 @@ ${availableTagsList}
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required", suggestedTagIds: [] }), {
-          status: 402,
+      if (response.status === 402 || response.status === 401) {
+        return new Response(JSON.stringify({ error: "API key invalid or payment required", suggestedTagIds: [] }), {
+          status: response.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "AI gateway error", suggestedTagIds: [] }), {
+      console.error("Perplexity API error:", response.status, errorText);
+      return new Response(JSON.stringify({ error: "Perplexity API error", suggestedTagIds: [] }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -123,7 +123,7 @@ ${availableTagsList}
       console.error("Failed to parse AI response:", aiResponse, parseError);
     }
 
-    console.log("AI suggested tags:", suggestedTagIds, "for context:", context.substring(0, 100));
+    console.log("Perplexity suggested tags:", suggestedTagIds, "for context:", context.substring(0, 100));
 
     return new Response(JSON.stringify({ suggestedTagIds }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
