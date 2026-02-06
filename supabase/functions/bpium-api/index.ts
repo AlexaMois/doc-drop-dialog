@@ -1,36 +1,34 @@
-// Bpium API Integration - v2 with Basic Auth
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// Bpium API Integration - v3 with correct field mapping
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ID каталогов в Bpium
+// ID каталогов в Bpium (справочники)
 const CATALOG_IDS = {
   documents: '56',      // Документы (загрузка) АТС
   directions: '55',     // Направления АТС
   roles: '57',          // Роли АТС
   projects: '54',       // Проекты АТС
   sources: '59',        // Источники АТС
-  checklists: '58',     // Чек-листы АТС (предположительно)
-  tags: '60',           // Теги АТС (предположительно)
 };
 
-// Маппинг полей для каталога документов (ID=56)
+// Правильный маппинг полей для каталога документов (ID=56)
+// Получен через GET /api/v1/catalogs/56
 const DOCUMENT_FIELDS = {
-  title: '2',           // Название документа
-  responsiblePerson: '3', // ФИО ответственного
-  sources: '4',         // Источники (связь)
-  directions: '5',      // Направления (связь)
-  roles: '6',           // Роли (связь)
-  projects: '10',       // Проекты (связь)
-  checklists: '11',     // Чек-листы (связь)
-  tags: '13',           // Теги (связь)
-  websiteUrl: '14',     // Ссылка
-  funPhrase: '15',      // Фраза для футболки
-  file: '16',           // Файл документа
-  submissionDate: '17', // Дата внесения
+  title: '2',             // Название (text)
+  file: '3',              // Файл (file, single)
+  directions: '4',        // Направление (object, связь с 55, multiselect)
+  roles: '5',             // Роли (object, связь с 57, multiselect)
+  projects: '6',          // Проекты (object, связь с 54, multiselect)
+  artifacts: '10',        // Артефакты (file, multiselect)
+  websiteUrl: '11',       // Сайт/ссылка (contact/site)
+  status: '12',           // Статус (dropdown: 1=Черновик, 2=На проверке, 3=Утверждён, 4=Отклонён)
+  sources: '13',          // Источник (object, связь с 59, single)
+  tags: '14',             // Теги (checkboxes, НЕ связанный объект!)
+  responsiblePerson: '15', // ФИО ответственного (text)
+  submissionDate: '16',   // Дата внесения (date)
 };
 
 interface BpiumRecord {
@@ -38,7 +36,6 @@ interface BpiumRecord {
   values: Record<string, unknown>;
 }
 
-// Создание заголовков для Basic авторизации Bpium
 function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string } {
   const domain = Deno.env.get('BPIUM_DOMAIN');
   const login = Deno.env.get('BPIUM_LOGIN');
@@ -48,7 +45,6 @@ function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string 
     throw new Error('Bpium credentials not configured');
   }
 
-  // Bpium использует Basic Authentication
   const credentials = btoa(`${login}:${password}`);
   
   return {
@@ -57,7 +53,6 @@ function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string 
   };
 }
 
-// Получение записей каталога
 async function fetchCatalog(headers: { Authorization: string; 'Content-Type': string }, catalogId: string): Promise<BpiumRecord[]> {
   const domain = Deno.env.get('BPIUM_DOMAIN');
   
@@ -74,7 +69,22 @@ async function fetchCatalog(headers: { Authorization: string; 'Content-Type': st
   return await response.json();
 }
 
-// Создание записи в каталоге
+async function fetchCatalogInfo(headers: { Authorization: string; 'Content-Type': string }, catalogId: string): Promise<unknown> {
+  const domain = Deno.env.get('BPIUM_DOMAIN');
+  
+  const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to fetch catalog info ${catalogId}: ${error}`);
+  }
+
+  return await response.json();
+}
+
 async function createRecord(
   headers: { Authorization: string; 'Content-Type': string }, 
   catalogId: string, 
@@ -96,16 +106,14 @@ async function createRecord(
   return await response.json();
 }
 
-// Преобразование записей Bpium в формат для MultiSelect
 function transformRecords(records: BpiumRecord[]): { value: string; label: string }[] {
   return records.map(record => ({
     value: record.id,
-    label: String(record.values['2'] || record.id), // Поле 2 = Название
+    label: String(record.values['2'] || record.id),
   }));
 }
 
-serve(async (req) => {
-  // CORS preflight
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -113,30 +121,42 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
-
-    // Получаем заголовки авторизации (Basic Auth)
     const authHeaders = getBpiumAuthHeaders();
 
     switch (action) {
+      case 'get-catalog-structure': {
+        const catalogId = url.searchParams.get('catalogId') || CATALOG_IDS.documents;
+        const catalogInfo = await fetchCatalogInfo(authHeaders, catalogId);
+        return new Response(JSON.stringify(catalogInfo), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'get-catalogs': {
-        // Загружаем все справочники параллельно
-        const [directionsRecords, rolesRecords, projectsRecords, sourcesRecords, checklistsRecords, tagsRecords] = 
+        const [directionsRecords, rolesRecords, projectsRecords, sourcesRecords] = 
           await Promise.all([
             fetchCatalog(authHeaders, CATALOG_IDS.directions),
             fetchCatalog(authHeaders, CATALOG_IDS.roles),
             fetchCatalog(authHeaders, CATALOG_IDS.projects),
             fetchCatalog(authHeaders, CATALOG_IDS.sources),
-            fetchCatalog(authHeaders, CATALOG_IDS.checklists),
-            fetchCatalog(authHeaders, CATALOG_IDS.tags),
           ]);
+
+        // Теги загружаются из структуры каталога (поле 14 - checkboxes)
+        const catalogInfo = await fetchCatalogInfo(authHeaders, CATALOG_IDS.documents) as { fields: Array<{ id: string; config?: { items?: Array<{ id: string; name: string }> } }> };
+        const tagsField = catalogInfo.fields?.find(f => f.id === '14');
+        const tagsItems = tagsField?.config?.items || [];
+        const tags = tagsItems.map((item: { id: string; name: string }) => ({
+          value: item.id,
+          label: item.name,
+        }));
 
         const result = {
           directions: transformRecords(directionsRecords),
           roles: transformRecords(rolesRecords),
           projects: transformRecords(projectsRecords),
           sources: transformRecords(sourcesRecords),
-          checklists: transformRecords(checklistsRecords),
-          tags: transformRecords(tagsRecords),
+          checklists: [], // Нет отдельного каталога чек-листов
+          tags: tags,
         };
 
         return new Response(JSON.stringify(result), {
@@ -147,33 +167,64 @@ serve(async (req) => {
       case 'submit-document': {
         const body = await req.json();
 
-        // Преобразуем массивы ID в формат связанных объектов Bpium: {catalogId, recordId}
-        const toLinkedRecords = (ids: string[], catalogId: string) => 
-          (ids || []).map(id => ({ catalogId, recordId: id }));
-
-        // Формируем значения для записи в Bpium
-        const values: Record<string, unknown> = {
-          [DOCUMENT_FIELDS.title]: body.documentName,
-          [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson,
-          // Связанные объекты в формате {catalogId, recordId}
-          [DOCUMENT_FIELDS.sources]: toLinkedRecords(body.sourceIds, CATALOG_IDS.sources),
-          [DOCUMENT_FIELDS.directions]: toLinkedRecords(body.directionIds, CATALOG_IDS.directions),
-          [DOCUMENT_FIELDS.roles]: toLinkedRecords(body.roleIds, CATALOG_IDS.roles),
-          [DOCUMENT_FIELDS.projects]: toLinkedRecords(body.projectIds, CATALOG_IDS.projects),
-          [DOCUMENT_FIELDS.checklists]: toLinkedRecords(body.checklistIds, CATALOG_IDS.checklists),
-          [DOCUMENT_FIELDS.tags]: toLinkedRecords(body.tagIds, CATALOG_IDS.tags),
-          [DOCUMENT_FIELDS.websiteUrl]: body.websiteUrl || '',
-          [DOCUMENT_FIELDS.funPhrase]: body.funPhrase || '',
-          [DOCUMENT_FIELDS.submissionDate]: body.submissionDate,
+        // Для полей типа "связанный объект" (object) формат: [{catalogId, recordId}]
+        const toLinkedRecords = (ids: string[] | undefined, catalogId: string) => {
+          if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return [];
+          }
+          return ids.map(id => ({ catalogId, recordId: id }));
         };
 
-        // Добавляем файл как внешнюю ссылку (согласно документации Bpium)
+        // Формируем значения для записи
+        const values: Record<string, unknown> = {};
+
+        // Текстовые поля
+        if (body.documentName) values[DOCUMENT_FIELDS.title] = body.documentName;
+        if (body.responsiblePerson) values[DOCUMENT_FIELDS.responsiblePerson] = body.responsiblePerson;
+
+        // Связанные объекты (object type)
+        const sources = toLinkedRecords(body.sourceIds, CATALOG_IDS.sources);
+        if (sources.length > 0) values[DOCUMENT_FIELDS.sources] = sources;
+        
+        const directions = toLinkedRecords(body.directionIds, CATALOG_IDS.directions);
+        if (directions.length > 0) values[DOCUMENT_FIELDS.directions] = directions;
+        
+        const roles = toLinkedRecords(body.roleIds, CATALOG_IDS.roles);
+        if (roles.length > 0) values[DOCUMENT_FIELDS.roles] = roles;
+        
+        const projects = toLinkedRecords(body.projectIds, CATALOG_IDS.projects);
+        if (projects.length > 0) values[DOCUMENT_FIELDS.projects] = projects;
+
+        // Теги (checkboxes) - просто массив ID
+        if (body.tagIds && body.tagIds.length > 0) {
+          values[DOCUMENT_FIELDS.tags] = body.tagIds;
+        }
+
+        // Сайт/ссылка (contact type) - формат: [{contact: url, comment: ""}]
+        if (body.websiteUrl) {
+          values[DOCUMENT_FIELDS.websiteUrl] = [{
+            contact: body.websiteUrl,
+            comment: ""
+          }];
+        }
+
+        // Дата внесения
+        if (body.submissionDate) {
+          values[DOCUMENT_FIELDS.submissionDate] = body.submissionDate;
+        }
+
+        // Статус - устанавливаем "Черновик" (1) по умолчанию
+        values[DOCUMENT_FIELDS.status] = ['1'];
+
+        // Файл (file type)
         if (body.file) {
           values[DOCUMENT_FIELDS.file] = [{
             src: `data:application/octet-stream;base64,${body.file.base64}`,
             title: body.file.name,
           }];
         }
+
+        console.log('Submitting to Bpium catalog 56:', JSON.stringify(values, null, 2));
 
         const record = await createRecord(authHeaders, CATALOG_IDS.documents, values);
 
@@ -184,7 +235,7 @@ serve(async (req) => {
 
       default:
         return new Response(
-          JSON.stringify({ error: 'Invalid action. Use: get-catalogs, submit-document' }),
+          JSON.stringify({ error: 'Invalid action. Use: get-catalogs, get-catalog-structure, submit-document' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }
