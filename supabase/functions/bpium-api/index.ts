@@ -25,9 +25,10 @@ const DOCUMENT_FIELDS = {
   websiteUrl: '11',       // Сайт/ссылка (contact/site)
   status: '12',           // Статус (dropdown: 1=Черновик, 2=На проверке, 3=Утверждён, 4=Отклонён)
   sources: '13',          // Источник (object, связь с 59, single)
-  tags: '14',             // Теги (checkboxes, НЕ связанный объект!)
+  // Поле 14 (checkboxes) больше не используется для тегов
   responsiblePerson: '15', // ФИО ответственного (text)
   submissionDate: '16',   // Дата внесения (date)
+  tags: '17',             // AI-теги (text) - УКАЖИТЕ ПРАВИЛЬНЫЙ ID ПОСЛЕ СОЗДАНИЯ ПОЛЯ В BPIUM
 };
 
 interface BpiumRecord {
@@ -143,39 +144,7 @@ Deno.serve(async (req) => {
             fetchCatalog(authHeaders, CATALOG_IDS.sources),
           ]);
 
-        // Теги загружаются из структуры каталога (поле 14 - checkboxes)
-        // Если в Bpium теги не настроены, используем тестовый набор
-        const FALLBACK_TAGS = [
-          { value: "1", label: "БДД" },
-          { value: "2", label: "Охрана труда" },
-          { value: "3", label: "Пожарная безопасность" },
-          { value: "4", label: "Инструкция" },
-          { value: "5", label: "Положение" },
-          { value: "6", label: "Приказ" },
-          { value: "7", label: "Памятка" },
-          { value: "8", label: "Регламент" },
-          { value: "9", label: "Водитель" },
-          { value: "10", label: "Механик" },
-          { value: "11", label: "ГСМ" },
-          { value: "12", label: "Медосмотр" },
-          { value: "13", label: "Обучение" },
-          { value: "14", label: "Аттестация" },
-          { value: "15", label: "Проверка" },
-        ];
-
-        const catalogInfo = await fetchCatalogInfo(authHeaders, CATALOG_IDS.documents) as { fields: Array<{ id: string; config?: { items?: Array<{ id: string; name: string }> } }> };
-        const tagsField = catalogInfo.fields?.find(f => f.id === '14');
-        const tagsItems = tagsField?.config?.items || [];
-        
-        // Флаг показывает, используются ли реальные теги из Bpium или fallback
-        const usingFallbackTags = tagsItems.length === 0;
-        
-        const tags = usingFallbackTags 
-          ? FALLBACK_TAGS
-          : tagsItems.map((item: { id: string; name: string }) => ({
-              value: item.id,
-              label: item.name,
-            }));
+        // Теги теперь генерируются AI и не загружаются из справочника
 
         const result = {
           directions: transformRecords(directionsRecords),
@@ -183,9 +152,6 @@ Deno.serve(async (req) => {
           projects: transformRecords(projectsRecords),
           sources: transformRecords(sourcesRecords),
           checklists: [], // Нет отдельного каталога чек-листов
-          tags: tags,
-          // Сообщаем клиенту, что теги — демо и не должны отправляться в Bpium
-          tagsAreFallback: usingFallbackTags,
         };
 
         return new Response(JSON.stringify(result), {
@@ -226,9 +192,9 @@ Deno.serve(async (req) => {
         const projects = toLinkedRecords(body.projectIds, CATALOG_IDS.projects);
         if (projects.length > 0) values[DOCUMENT_FIELDS.projects] = projects;
 
-        // Теги (checkboxes) - просто массив ID
-        if (body.tagIds && body.tagIds.length > 0) {
-          values[DOCUMENT_FIELDS.tags] = body.tagIds;
+        // AI-теги (text) - отправляем как строку через запятую
+        if (body.tags && body.tags.length > 0) {
+          values[DOCUMENT_FIELDS.tags] = body.tags.join(', ');
         }
 
         // Сайт/ссылка (contact type) - формат: [{contact: url, comment: ""}]

@@ -12,8 +12,6 @@ interface CatalogsResponse {
   roles: CatalogOption[];
   projects: CatalogOption[];
   checklists: CatalogOption[];
-  tags: CatalogOption[];
-  tagsAreFallback?: boolean; // true если теги — демо и не должны отправляться в Bpium
 }
 
 // Запрос к edge function для получения всех каталогов
@@ -54,8 +52,6 @@ export function useAllCatalogs() {
     roles: { data: query.data?.roles, isLoading: query.isLoading },
     projects: { data: query.data?.projects, isLoading: query.isLoading },
     checklists: { data: query.data?.checklists, isLoading: query.isLoading },
-    tags: { data: query.data?.tags, isLoading: query.isLoading },
-    tagsAreFallback: query.data?.tagsAreFallback ?? false,
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,
@@ -73,9 +69,8 @@ export async function submitDocumentToBpium(data: {
   roleIds: string[];
   projectIds: string[];
   checklistIds: string[];
-  tagIds: string[];
+  tags: string[];  // AI-generated tag names (strings)
   websiteUrl: string | null;
-  funPhrase: string | null;
   submissionDate: string;
 }): Promise<{ success: boolean; recordId: string }> {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
