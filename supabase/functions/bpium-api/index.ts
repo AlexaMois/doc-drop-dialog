@@ -147,26 +147,31 @@ serve(async (req) => {
       case 'submit-document': {
         const body = await req.json();
 
+        // Преобразуем массивы ID в формат связанных объектов Bpium: {catalogId, recordId}
+        const toLinkedRecords = (ids: string[], catalogId: string) => 
+          (ids || []).map(id => ({ catalogId, recordId: id }));
+
         // Формируем значения для записи в Bpium
         const values: Record<string, unknown> = {
           [DOCUMENT_FIELDS.title]: body.documentName,
           [DOCUMENT_FIELDS.responsiblePerson]: body.responsiblePerson,
-          [DOCUMENT_FIELDS.sources]: body.sourceIds,
-          [DOCUMENT_FIELDS.directions]: body.directionIds,
-          [DOCUMENT_FIELDS.roles]: body.roleIds,
-          [DOCUMENT_FIELDS.projects]: body.projectIds,
-          [DOCUMENT_FIELDS.checklists]: body.checklistIds,
-          [DOCUMENT_FIELDS.tags]: body.tagIds || [],
+          // Связанные объекты в формате {catalogId, recordId}
+          [DOCUMENT_FIELDS.sources]: toLinkedRecords(body.sourceIds, CATALOG_IDS.sources),
+          [DOCUMENT_FIELDS.directions]: toLinkedRecords(body.directionIds, CATALOG_IDS.directions),
+          [DOCUMENT_FIELDS.roles]: toLinkedRecords(body.roleIds, CATALOG_IDS.roles),
+          [DOCUMENT_FIELDS.projects]: toLinkedRecords(body.projectIds, CATALOG_IDS.projects),
+          [DOCUMENT_FIELDS.checklists]: toLinkedRecords(body.checklistIds, CATALOG_IDS.checklists),
+          [DOCUMENT_FIELDS.tags]: toLinkedRecords(body.tagIds, CATALOG_IDS.tags),
           [DOCUMENT_FIELDS.websiteUrl]: body.websiteUrl || '',
           [DOCUMENT_FIELDS.funPhrase]: body.funPhrase || '',
           [DOCUMENT_FIELDS.submissionDate]: body.submissionDate,
         };
 
-        // Добавляем файл, если передан
+        // Добавляем файл как внешнюю ссылку (согласно документации Bpium)
         if (body.file) {
           values[DOCUMENT_FIELDS.file] = [{
-            name: body.file.name,
-            data: body.file.base64,
+            src: `data:application/octet-stream;base64,${body.file.base64}`,
+            title: body.file.name,
           }];
         }
 
