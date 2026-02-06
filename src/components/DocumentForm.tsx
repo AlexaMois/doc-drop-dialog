@@ -24,7 +24,6 @@ const formSchema = z.object({
   directions: z.array(z.string()).min(1, "Выберите хотя бы одно направление"),
   roles: z.array(z.string()).min(1, "Выберите хотя бы одну роль"),
   projects: z.array(z.string()).min(1, "Выберите хотя бы один проект"),
-  checklists: z.array(z.string()).min(1, "Выберите хотя бы один чек-лист"),
   tags: z.array(z.string()).optional(),
   websiteUrl: z.string().url("Введите корректный URL").optional().or(z.literal("")),
   funPhrase: z.string().optional(),
@@ -56,7 +55,6 @@ export function DocumentForm() {
       directions: [],
       roles: [],
       projects: [],
-      checklists: [],
       tags: [],
       websiteUrl: "",
       funPhrase: "",
@@ -76,7 +74,6 @@ export function DocumentForm() {
   const directions = watch("directions");
   const roles = watch("roles");
   const projects = watch("projects");
-  const checklists = watch("checklists");
   const tags = watch("tags") || [];
 
   // Предложения тегов на основе названия и файла
@@ -109,7 +106,6 @@ export function DocumentForm() {
       { ids: data.directions, catalog: catalogs.directions.data, name: "Направления" },
       { ids: data.roles, catalog: catalogs.roles.data, name: "Роли" },
       { ids: data.projects, catalog: catalogs.projects.data, name: "Проекты" },
-      { ids: data.checklists, catalog: catalogs.checklists.data, name: "Чек-листы" },
       { ids: data.tags || [], catalog: catalogs.tags.data, name: "Теги" },
     ];
 
@@ -143,7 +139,7 @@ export function DocumentForm() {
         directionIds: data.directions,
         roleIds: data.roles,
         projectIds: data.projects,
-        checklistIds: data.checklists,
+        checklistIds: [], // Чек-листы убраны из формы
         tagIds: data.tags || [],
         websiteUrl: data.websiteUrl?.trim() || null,
         funPhrase: data.funPhrase?.trim() || null,
@@ -175,7 +171,6 @@ export function DocumentForm() {
       directions: [],
       roles: [],
       projects: [],
-      checklists: [],
       tags: [],
       websiteUrl: "",
       funPhrase: "",
@@ -350,21 +345,6 @@ export function DocumentForm() {
         )}
       </div>
 
-      {/* Чек-листы */}
-      <div className="space-y-2">
-        <Label>
-          Чек-листы <span className="text-destructive">*</span>
-        </Label>
-        <MultiSelect
-          options={catalogs.checklists.data || []}
-          selected={checklists}
-          onChange={(v) => setValue("checklists", v, { shouldValidate: true })}
-          placeholder="Выберите чек-листы"
-        />
-        {errors.checklists && (
-          <p className="text-sm text-destructive">{errors.checklists.message}</p>
-        )}
-      </div>
 
       {/* Теги с предложениями */}
       <TagSelector
