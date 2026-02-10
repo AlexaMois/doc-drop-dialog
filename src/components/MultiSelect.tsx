@@ -110,7 +110,7 @@ export function MultiSelect({
               variant="secondary"
               className="mr-1 mb-1 bg-accent text-accent-foreground"
             >
-              {label}
+              <span className="truncate max-w-[150px]">{label}</span>
               <button
                 className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 min-w-[28px] min-h-[28px] p-1 inline-flex items-center justify-center"
                 onMouseDown={(e) => handleRemove(selected[index], e)}
@@ -195,13 +195,13 @@ export function MultiSelect({
                     variant="secondary"
                     className="bg-accent text-accent-foreground text-sm py-1 px-2.5"
                   >
-                    {label}
-                    <button
-                      className="ml-1.5 rounded-full min-w-[28px] min-h-[28px] p-1 inline-flex items-center justify-center hover:bg-muted/50"
-                      onClick={() => onChange(selected.filter((item) => item !== selected[index]))}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+              <span className="truncate max-w-[200px]">{label}</span>
+              <button
+                className="ml-1.5 rounded-full min-w-[28px] min-h-[28px] p-1 inline-flex items-center justify-center hover:bg-muted/50 shrink-0"
+                onClick={() => onChange(selected.filter((item) => item !== selected[index]))}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
                   </Badge>
                 ))}
                 {selected.length > 1 && (

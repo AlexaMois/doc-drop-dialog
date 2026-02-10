@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Send, CheckCircle, Loader2, Lock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import confetti from "canvas-confetti";
+
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -158,34 +158,7 @@ export function DocumentForm() {
       const result = await submitDocumentToBpium(submitData);
       
       console.log("Документ успешно создан в Bpium:", result);
-      toast.success("Документ успешно отправлен!");
       setIsSubmitted(true);
-      
-      // Запускаем конфетти! 🎉
-      const duration = 3000;
-      const end = Date.now() + duration;
-
-      const frame = () => {
-        confetti({
-          particleCount: 3,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0, y: 0.6 },
-          colors: ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE'],
-        });
-        confetti({
-          particleCount: 3,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1, y: 0.6 },
-          colors: ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE'],
-        });
-
-        if (Date.now() < end) {
-          requestAnimationFrame(frame);
-        }
-      };
-      frame();
     } catch (error) {
       console.error("Ошибка отправки документа:", error);
       toast.error(error instanceof Error ? error.message : "Ошибка отправки документа");
