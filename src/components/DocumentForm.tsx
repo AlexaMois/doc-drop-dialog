@@ -1,4 +1,5 @@
 import * as React from "react";
+import logo from "@/assets/logo.jpg";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -215,6 +216,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
   if (isSubmitted) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in-0 zoom-in-95 duration-500">
+        <img src={logo} alt="Логотип" className="h-16 w-16 rounded-2xl mb-6" />
         <div className="p-4 bg-accent rounded-full mb-6">
           <CheckCircle className="h-12 w-12 text-primary" />
         </div>
