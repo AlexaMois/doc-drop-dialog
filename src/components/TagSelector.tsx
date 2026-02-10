@@ -133,11 +133,6 @@ export function TagSelector({
         </Button>
       </div>
 
-      {selectedTags.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Теги будут отправлены в Bpium: {selectedTags.join(", ")}
-        </p>
-      )}
     </div>
   );
 }
