@@ -324,7 +324,8 @@ export function DocumentForm() {
           options={catalogs.sources.data || []}
           selected={sources}
           onChange={(v) => setValue("sources", v, { shouldValidate: true })}
-          placeholder="Выберите источники"
+          placeholder="Выберите источник"
+          maxSelected={1}
         />
         {errors.sources && (
           <p className="text-sm text-destructive">{errors.sources.message}</p>
