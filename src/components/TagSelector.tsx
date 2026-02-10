@@ -53,6 +53,9 @@ export function TagSelector({
   return (
     <div className="space-y-3">
       <Label>Теги (генерируются AI)</Label>
+      <p className="text-xs text-muted-foreground">
+        Теги генерируются на основе названия документа и выбранных полей. Для точной классификации используйте понятные имена файлов.
+      </p>
       
       {/* AI-подсказки тегов */}
       {(availableSuggestions.length > 0 || isAiLoading) && (
