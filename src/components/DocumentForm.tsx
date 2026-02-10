@@ -215,7 +215,7 @@ export function DocumentForm() {
         <h1 className="text-4xl md:text-5xl font-bold text-primary mb-4">
           ТЫ МОЛОДЕЦ!
         </h1>
-        
+        <h2 className="text-2xl font-semibold mb-2">Документ принят!</h2>
         <p className="text-muted-foreground mb-6">
           Документ принят и отправлен на проверку
         </p>
