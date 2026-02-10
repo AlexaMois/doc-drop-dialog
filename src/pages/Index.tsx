@@ -1,5 +1,5 @@
 import { DocumentForm } from "@/components/DocumentForm";
-import { FileText } from "lucide-react";
+import logo from "@/assets/logo.jpg";
 
 const Index = () => {
   return (
@@ -7,9 +7,7 @@ const Index = () => {
       <div className="container max-w-2xl mx-auto px-4 py-12">
         {/* Header */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center p-3 bg-accent rounded-2xl mb-6">
-            <FileText className="h-8 w-8 text-primary" />
-          </div>
+          <img src={logo} alt="Логотип" className="h-16 w-16 rounded-2xl mb-6" />
           <h1 className="text-3xl md:text-4xl font-bold mb-3">
             Что мы добавляем в портал?
           </h1>
