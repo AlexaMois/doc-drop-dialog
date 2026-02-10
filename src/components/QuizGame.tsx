@@ -109,6 +109,9 @@ export function QuizGame({ onCorrectAnswer }: QuizGameProps) {
         <Sparkles className="h-4 w-4 text-primary" />
         Мини-викторина
       </Label>
+      <p className="text-xs text-muted-foreground">
+        Ответьте правильно, чтобы разблокировать отправку
+      </p>
       
       <div className="bg-accent/50 rounded-lg p-4 space-y-4">
         <p className="font-medium text-foreground">
