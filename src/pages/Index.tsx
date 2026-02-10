@@ -8,12 +8,6 @@ const Index = () => {
         {/* Header */}
         <div className="text-center mb-10">
           <img src={logo} alt="Логотип" className="h-16 w-16 rounded-2xl mb-6 mx-auto" />
-          <h1 className="text-3xl md:text-4xl font-bold mb-3">
-            Что мы добавляем в портал?
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Заполните форму. Все поля обязательны.
-          </p>
         </div>
 
         {/* Form Card */}
