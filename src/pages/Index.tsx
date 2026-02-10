@@ -7,7 +7,7 @@ const Index = () => {
       <div className="container max-w-2xl mx-auto px-4 py-12">
         {/* Header */}
         <div className="text-center mb-10">
-          <img src={logo} alt="Логотип" className="h-16 w-16 rounded-2xl mb-6" />
+          <img src={logo} alt="Логотип" className="h-16 w-16 rounded-2xl mb-6 mx-auto" />
           <h1 className="text-3xl md:text-4xl font-bold mb-3">
             Что мы добавляем в портал?
           </h1>
