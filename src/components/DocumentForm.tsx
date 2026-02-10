@@ -31,7 +31,11 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export function DocumentForm() {
+interface DocumentFormProps {
+  onSubmittedChange?: (submitted: boolean) => void;
+}
+
+export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [quizPassed, setQuizPassed] = React.useState(false);
@@ -159,6 +163,7 @@ export function DocumentForm() {
       
       console.log("Документ успешно создан в Bpium:", result);
       setIsSubmitted(true);
+      onSubmittedChange?.(true);
     } catch (error) {
       console.error("Ошибка отправки документа:", error);
       toast.error(error instanceof Error ? error.message : "Ошибка отправки документа");
@@ -179,6 +184,7 @@ export function DocumentForm() {
       tags: [],
     });
     setIsSubmitted(false);
+    onSubmittedChange?.(false);
     setQuizPassed(false);
   };
 
@@ -215,7 +221,7 @@ export function DocumentForm() {
         <h1 className="text-4xl md:text-5xl font-bold text-primary mb-4">
           ТЫ МОЛОДЕЦ!
         </h1>
-        <h2 className="text-2xl font-semibold mb-2">Документ принят!</h2>
+        
         <p className="text-muted-foreground mb-6">
           Документ принят и отправлен на проверку
         </p>
