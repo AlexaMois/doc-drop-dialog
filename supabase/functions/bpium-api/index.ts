@@ -180,8 +180,9 @@ Deno.serve(async (req) => {
         if (body.responsiblePerson) values[DOCUMENT_FIELDS.responsiblePerson] = body.responsiblePerson;
 
         // Связанные объекты (object type) - ВСЕ передаются как массивы
+        // Источник — single-select, передаём только первый элемент
         const sources = toLinkedRecords(body.sourceIds, CATALOG_IDS.sources);
-        if (sources.length > 0) values[DOCUMENT_FIELDS.sources] = sources;
+        if (sources.length > 0) values[DOCUMENT_FIELDS.sources] = [sources[0]];
         
         const directions = toLinkedRecords(body.directionIds, CATALOG_IDS.directions);
         if (directions.length > 0) values[DOCUMENT_FIELDS.directions] = directions;
