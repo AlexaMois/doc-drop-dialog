@@ -26,7 +26,7 @@ const formSchema = z.object({
   directions: z.array(z.string()).min(1, "Выберите хотя бы одно направление"),
   roles: z.array(z.string()).min(1, "Выберите хотя бы одну роль"),
   projects: z.array(z.string()).min(1, "Выберите хотя бы один проект"),
-  tags: z.array(z.string()).optional(),
+  tags: z.array(z.string()).min(1, "Выберите хотя бы один тег"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -385,9 +385,12 @@ export function DocumentForm() {
       <TagSelector
         suggestedTags={suggestedTags}
         selectedTags={tags}
-        onChange={(v) => setValue("tags", v)}
+        onChange={(v) => setValue("tags", v, { shouldValidate: true })}
         isAiLoading={isAiTagsLoading}
       />
+      {errors.tags && (
+        <p className="text-sm text-destructive">{errors.tags.message}</p>
+      )}
 
       {/* Мини-викторина */}
       <QuizGame onCorrectAnswer={setQuizPassed} />
