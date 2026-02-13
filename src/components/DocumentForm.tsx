@@ -276,10 +276,13 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
         </Label>
         <Input
           id="documentName"
-          placeholder="№ 259-ФЗ от 01.01.2025, Полное наименование / Сокращённое наименование"
+          placeholder="Введите название документа"
           {...register("documentName")}
           className="bg-card"
         />
+        <p className="text-xs text-muted-foreground">
+          Формат: № 259-ФЗ от 01.01.2025, Полное наименование / Сокращённое наименование
+        </p>
         {errors.documentName && (
           <p className="text-sm text-destructive">{errors.documentName.message}</p>
         )}
