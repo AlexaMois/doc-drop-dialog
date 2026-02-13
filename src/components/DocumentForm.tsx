@@ -21,7 +21,9 @@ import { uploadDocumentFile } from "@/lib/storage";
 
 const formSchema = z.object({
   documentName: z.string().min(1, "Название документа обязательно"),
-  file: z.instanceof(File, { message: "Файл документа обязателен" }).nullable().refine((val) => val !== null, "Файл документа обязателен"),
+  file: z.any()
+    .refine((val) => val !== null && val !== undefined, "Файл документа обязателен")
+    .refine((val) => val && typeof val === 'object' && 'name' in val && 'size' in val, "Некорректный файл"),
   responsiblePerson: z.string().min(1, "ФИО ответственного обязательно"),
   sources: z.array(z.string()).min(1, "Выберите хотя бы один источник"),
   directions: z.array(z.string()).min(1, "Выберите хотя бы одно направление"),
@@ -251,6 +253,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
           disabled={responsible.isLocked}
           className={responsible.isLocked ? "bg-muted cursor-not-allowed" : "bg-card"}
           onChange={(e) => {
+            register("responsiblePerson").onChange(e);
             if (!responsible.isLocked) {
               responsible.updateTempName(e.target.value);
             }
@@ -292,7 +295,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
           onChange={(f) => setValue("file", f, { shouldValidate: true })}
         />
         {errors.file && (
-          <p className="text-sm text-destructive">{errors.file.message}</p>
+          <p className="text-sm text-destructive">{errors.file.message as string}</p>
         )}
       </div>
 
