@@ -14,7 +14,9 @@ import { MultiSelect } from "@/components/MultiSelect";
 import { FileUpload } from "@/components/FileUpload";
 import { TagSelector } from "@/components/TagSelector";
 import { QuizGame } from "@/components/QuizGame";
-import { useAllCatalogs, submitDocumentToBpium } from "@/hooks/useBpiumCatalogs";
+import { useAllCatalogs, submitDocumentToBpium, checkDocumentDuplicate } from "@/hooks/useBpiumCatalogs";
+import type { DuplicateRecord } from "@/hooks/useBpiumCatalogs";
+import { DuplicateWarningDialog } from "@/components/DuplicateWarningDialog";
 import { useResponsiblePerson } from "@/hooks/useResponsiblePerson";
 import { useAiTagSuggestions } from "@/hooks/useAiTagSuggestions";
 import { uploadDocumentFile } from "@/lib/storage";
@@ -42,6 +44,9 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [quizPassed, setQuizPassed] = React.useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = React.useState(false);
+  const [foundDuplicates, setFoundDuplicates] = React.useState<DuplicateRecord[]>([]);
+  const [pendingFormData, setPendingFormData] = React.useState<FormData | null>(null);
   
   const catalogs = useAllCatalogs();
   const responsible = useResponsiblePerson();
@@ -113,6 +118,41 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
     return true;
   };
 
+  const performSubmit = async (data: FormData) => {
+    setIsSubmitting(true);
+    try {
+      console.log("Загрузка файла в хранилище...");
+      const fileUrl = await uploadDocumentFile(data.file!);
+      console.log("Файл загружен:", fileUrl);
+
+      const submitData = {
+        documentName: data.documentName.trim(),
+        responsiblePerson: data.responsiblePerson.trim(),
+        fileUrl: fileUrl,
+        fileName: data.file!.name,
+        sourceIds: data.sources,
+        directionIds: data.directions,
+        roleIds: data.roles,
+        projectIds: data.projects,
+        checklistIds: [],
+        tags: data.tags || [],
+        websiteUrl: null,
+        submissionDate: new Date().toISOString(),
+      };
+
+      console.log("Отправка данных в Bpium:", submitData);
+      const result = await submitDocumentToBpium(submitData);
+      console.log("Документ успешно создан в Bpium:", result);
+      setIsSubmitted(true);
+      onSubmittedChange?.(true);
+    } catch (error) {
+      console.error("Ошибка отправки документа:", error);
+      toast.error(error instanceof Error ? error.message : "Ошибка отправки документа");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const onSubmit = async (data: FormData) => {
     // Строгая валидация: все значения должны существовать в каталогах
     const validations = [
@@ -120,7 +160,6 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
       { ids: data.directions, catalog: catalogs.directions.data, name: "Направления" },
       { ids: data.roles, catalog: catalogs.roles.data, name: "Роли" },
       { ids: data.projects, catalog: catalogs.projects.data, name: "Проекты" },
-      // Теги теперь свободный текст от AI, не валидируем
     ];
 
     for (const { ids, catalog, name } of validations) {
@@ -135,44 +174,38 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
       responsible.saveName(data.responsiblePerson);
     }
 
-    setIsSubmitting(true);
-
+    // Проверка дубликатов
     try {
-      // Загружаем файл в Supabase Storage
-      console.log("Загрузка файла в хранилище...");
-      const fileUrl = await uploadDocumentFile(data.file!);
-      console.log("Файл загружен:", fileUrl);
-
-      // Формируем данные для отправки в Bpium
-      const submitData = {
-        documentName: data.documentName.trim(),
-        responsiblePerson: data.responsiblePerson.trim(),
-        fileUrl: fileUrl,
-        fileName: data.file!.name,
-        sourceIds: data.sources,
-        directionIds: data.directions,
-        roleIds: data.roles,
-        projectIds: data.projects,
-        checklistIds: [], // Чек-листы убраны из формы
-        tags: data.tags || [], // AI-generated tag names
-        websiteUrl: null,
-        submissionDate: new Date().toISOString(),
-      };
-
-      console.log("Отправка данных в Bpium:", submitData);
-
-      // Отправляем в Bpium через edge function
-      const result = await submitDocumentToBpium(submitData);
-      
-      console.log("Документ успешно создан в Bpium:", result);
-      setIsSubmitted(true);
-      onSubmittedChange?.(true);
-    } catch (error) {
-      console.error("Ошибка отправки документа:", error);
-      toast.error(error instanceof Error ? error.message : "Ошибка отправки документа");
-    } finally {
+      setIsSubmitting(true);
+      const duplicateResult = await checkDocumentDuplicate(data.documentName);
       setIsSubmitting(false);
+
+      if (duplicateResult.hasDuplicates) {
+        setFoundDuplicates(duplicateResult.duplicates);
+        setPendingFormData(data);
+        setDuplicateDialogOpen(true);
+        return;
+      }
+    } catch (error) {
+      console.error("Ошибка проверки дубликатов:", error);
+      setIsSubmitting(false);
+      // Если проверка не удалась — продолжаем отправку
     }
+
+    await performSubmit(data);
+  };
+
+  const handleDuplicateConfirm = async () => {
+    setDuplicateDialogOpen(false);
+    if (pendingFormData) {
+      await performSubmit(pendingFormData);
+      setPendingFormData(null);
+    }
+  };
+
+  const handleDuplicateCancel = () => {
+    setDuplicateDialogOpen(false);
+    setPendingFormData(null);
   };
 
   const handleReset = () => {
@@ -401,6 +434,14 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
           </>
         )}
       </Button>
+
+      <DuplicateWarningDialog
+        open={duplicateDialogOpen}
+        onOpenChange={setDuplicateDialogOpen}
+        duplicates={foundDuplicates}
+        onConfirm={handleDuplicateConfirm}
+        onCancel={handleDuplicateCancel}
+      />
     </form>
   );
 }

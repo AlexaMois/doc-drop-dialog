@@ -159,6 +159,31 @@ Deno.serve(async (req) => {
         });
       }
 
+      case 'check-duplicate': {
+        const { documentName } = await req.json();
+        if (!documentName || typeof documentName !== 'string') {
+          return new Response(
+            JSON.stringify({ error: 'documentName is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const allRecords = await fetchCatalog(authHeaders, CATALOG_IDS.documents);
+        const normalizedName = documentName.trim().toLowerCase();
+        const duplicates = allRecords.filter(r => {
+          const title = String(r.values['2'] || '').trim().toLowerCase();
+          return title === normalizedName;
+        }).map(r => ({
+          id: r.id,
+          title: String(r.values['2'] || ''),
+          responsiblePerson: String(r.values['15'] || ''),
+          submissionDate: String(r.values['16'] || ''),
+        }));
+        return new Response(
+          JSON.stringify({ duplicates, hasDuplicates: duplicates.length > 0 }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'submit-document': {
         const body = await req.json();
 
@@ -234,7 +259,7 @@ Deno.serve(async (req) => {
 
       default:
         return new Response(
-          JSON.stringify({ error: 'Invalid action. Use: get-catalogs, get-catalog-structure, submit-document' }),
+          JSON.stringify({ error: 'Invalid action. Use: get-catalogs, get-catalog-structure, check-duplicate, submit-document' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }
