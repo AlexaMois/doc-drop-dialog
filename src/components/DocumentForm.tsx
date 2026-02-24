@@ -17,6 +17,8 @@ import { QuizGame } from "@/components/QuizGame";
 import { useAllCatalogs, submitDocumentToBpium, checkDocumentDuplicate } from "@/hooks/useBpiumCatalogs";
 import type { DuplicateRecord } from "@/hooks/useBpiumCatalogs";
 import { DuplicateWarningDialog } from "@/components/DuplicateWarningDialog";
+import { DuplicateInlineWarning } from "@/components/DuplicateInlineWarning";
+import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
 import { useResponsiblePerson } from "@/hooks/useResponsiblePerson";
 import { useAiTagSuggestions } from "@/hooks/useAiTagSuggestions";
 import { uploadDocumentFile } from "@/lib/storage";
@@ -50,6 +52,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
   
   const catalogs = useAllCatalogs();
   const responsible = useResponsiblePerson();
+  
 
   const {
     register,
@@ -81,6 +84,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
 
   const file = watch("file");
   const documentName = watch("documentName");
+  const duplicateCheck = useDuplicateCheck(documentName || "");
   const sources = watch("sources");
   const directions = watch("directions");
   const roles = watch("roles");
@@ -174,22 +178,12 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
       responsible.saveName(data.responsiblePerson);
     }
 
-    // Проверка дубликатов
-    try {
-      setIsSubmitting(true);
-      const duplicateResult = await checkDocumentDuplicate(data.documentName);
-      setIsSubmitting(false);
-
-      if (duplicateResult.hasDuplicates) {
-        setFoundDuplicates(duplicateResult.duplicates);
-        setPendingFormData(data);
-        setDuplicateDialogOpen(true);
-        return;
-      }
-    } catch (error) {
-      console.error("Ошибка проверки дубликатов:", error);
-      setIsSubmitting(false);
-      // Если проверка не удалась — продолжаем отправку
+    // Проверка дубликатов — финальная защита для точных совпадений
+    if (duplicateCheck.exactMatches.length > 0) {
+      setFoundDuplicates(duplicateCheck.exactMatches);
+      setPendingFormData(data);
+      setDuplicateDialogOpen(true);
+      return;
     }
 
     await performSubmit(data);
@@ -312,6 +306,11 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
           placeholder="Введите название документа"
           {...register("documentName")}
           className="bg-card"
+        />
+        <DuplicateInlineWarning
+          exactMatches={duplicateCheck.exactMatches}
+          similarMatches={duplicateCheck.similarMatches}
+          isChecking={duplicateCheck.isChecking}
         />
         <p className="text-xs text-muted-foreground">
           Формат: № 259-ФЗ от 01.01.2025, Полное наименование / Сокращённое наименование

@@ -116,6 +116,21 @@ function transformRecords(records: BpiumRecord[]): { value: string; label: strin
   }));
 }
 
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -168,18 +183,57 @@ Deno.serve(async (req) => {
           );
         }
         const allRecords = await fetchCatalog(authHeaders, CATALOG_IDS.documents);
-        const normalizedName = documentName.trim().toLowerCase();
-        const duplicates = allRecords.filter(r => {
+        const normalizedInput = documentName.trim().toLowerCase();
+
+        const STATUS_MAP: Record<string, string> = {
+          '1': 'Черновик',
+          '2': 'На проверке',
+          '3': 'Утверждён',
+          '4': 'Отклонён',
+        };
+
+        const toMatch = (r: BpiumRecord) => {
+          const statusRaw = r.values['12'];
+          const statusId = Array.isArray(statusRaw) ? String(statusRaw[0]) : String(statusRaw || '');
+          return {
+            id: r.id,
+            title: String(r.values['2'] || ''),
+            responsiblePerson: String(r.values['15'] || ''),
+            submissionDate: String(r.values['16'] || ''),
+            status: STATUS_MAP[statusId] || '',
+          };
+        };
+
+        const exactMatches: ReturnType<typeof toMatch>[] = [];
+        const similarMatches: ReturnType<typeof toMatch>[] = [];
+
+        for (const r of allRecords) {
           const title = String(r.values['2'] || '').trim().toLowerCase();
-          return title === normalizedName;
-        }).map(r => ({
-          id: r.id,
-          title: String(r.values['2'] || ''),
-          responsiblePerson: String(r.values['15'] || ''),
-          submissionDate: String(r.values['16'] || ''),
-        }));
+          if (!title) continue;
+
+          if (title === normalizedInput) {
+            exactMatches.push(toMatch(r));
+            continue;
+          }
+
+          // Substring check
+          if (normalizedInput.length >= 5 && (title.includes(normalizedInput) || normalizedInput.includes(title))) {
+            similarMatches.push(toMatch(r));
+            continue;
+          }
+
+          // Levenshtein distance check (threshold: 30% of max length)
+          const maxLen = Math.max(title.length, normalizedInput.length);
+          if (maxLen > 0 && normalizedInput.length >= 5) {
+            const dist = levenshteinDistance(title, normalizedInput);
+            if (dist <= Math.floor(maxLen * 0.3)) {
+              similarMatches.push(toMatch(r));
+            }
+          }
+        }
+
         return new Response(
-          JSON.stringify({ duplicates, hasDuplicates: duplicates.length > 0 }),
+          JSON.stringify({ exactMatches, similarMatches }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
