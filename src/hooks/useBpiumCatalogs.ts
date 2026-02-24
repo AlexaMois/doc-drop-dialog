@@ -64,11 +64,12 @@ export interface DuplicateRecord {
   title: string;
   responsiblePerson: string;
   submissionDate: string;
+  status?: string;
 }
 
 export interface DuplicateResult {
-  duplicates: DuplicateRecord[];
-  hasDuplicates: boolean;
+  exactMatches: DuplicateRecord[];
+  similarMatches: DuplicateRecord[];
 }
 
 export async function checkDocumentDuplicate(documentName: string): Promise<DuplicateResult> {
