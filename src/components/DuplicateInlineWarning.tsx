@@ -1,4 +1,5 @@
-import { Loader2, AlertTriangle, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { Loader2, AlertTriangle, AlertCircle, ChevronDown } from "lucide-react";
 import type { DuplicateMatch } from "@/hooks/useDuplicateCheck";
 
 interface DuplicateInlineWarningProps {
@@ -12,6 +13,8 @@ export function DuplicateInlineWarning({
   similarMatches,
   isChecking,
 }: DuplicateInlineWarningProps) {
+  const [similarOpen, setSimilarOpen] = useState(false);
+
   if (isChecking) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
@@ -54,18 +57,30 @@ export function DuplicateInlineWarning({
 
       {similarMatches.length > 0 && (
         <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-yellow-700 dark:text-yellow-400">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            Найдены похожие документы ({similarMatches.length} шт.)
+          <div
+            className="flex items-center justify-between cursor-pointer select-none"
+            onClick={() => setSimilarOpen(!similarOpen)}
+          >
+            <div className="flex items-center gap-2 text-sm font-medium text-yellow-700 dark:text-yellow-400">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Найдены похожие документы ({similarMatches.length} шт.)
+            </div>
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-200 text-yellow-700 dark:text-yellow-400 ${similarOpen ? "rotate-180" : ""}`}
+            />
           </div>
-          <ul className="text-sm text-foreground pl-6 space-y-1 list-disc list-inside">
-            {similarMatches.slice(0, 5).map((m) => (
-              <li key={m.id}>{m.title}</li>
-            ))}
-          </ul>
-          <p className="text-xs text-muted-foreground pl-6">
-            Убедитесь, что загружаете новый документ, а не дубликат.
-          </p>
+          {similarOpen && (
+            <>
+              <ul className="text-sm text-foreground pl-6 space-y-1 list-disc list-inside">
+                {similarMatches.slice(0, 5).map((m) => (
+                  <li key={m.id}>{m.title}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground pl-6">
+                Убедитесь, что загружаете новый документ, а не дубликат.
+              </p>
+            </>
+          )}
         </div>
       )}
     </div>
