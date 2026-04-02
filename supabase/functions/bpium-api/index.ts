@@ -102,7 +102,7 @@ async function createRecord(
   catalogId: string, 
   values: Record<string, unknown>
 ): Promise<BpiumRecord> {
-  const domain = Deno.env.get('BPIUM_DOMAIN');
+  const domain = getBpiumDomain();
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'POST',
