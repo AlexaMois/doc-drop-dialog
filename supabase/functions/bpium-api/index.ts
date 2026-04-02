@@ -63,7 +63,7 @@ function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string 
 }
 
 async function fetchCatalog(headers: { Authorization: string; 'Content-Type': string }, catalogId: string): Promise<BpiumRecord[]> {
-  const domain = Deno.env.get('BPIUM_DOMAIN');
+  const domain = getBpiumDomain();
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'GET',
