@@ -36,19 +36,22 @@ interface BpiumRecord {
   values: Record<string, unknown>;
 }
 
-function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string } {
+function getBpiumDomain(): string {
   let domain = Deno.env.get('BPIUM_DOMAIN');
-  const login = Deno.env.get('BPIUM_LOGIN');
-  const password = Deno.env.get('BPIUM_PASSWORD');
-
-  if (!domain || !login || !password) {
-    throw new Error('Bpium credentials not configured');
-  }
-
-  // Ensure domain has https:// prefix and no trailing slash
+  if (!domain) throw new Error('BPIUM_DOMAIN not configured');
   domain = domain.replace(/\/+$/, '');
   if (!/^https?:\/\//i.test(domain)) {
     domain = `https://${domain}`;
+  }
+  return domain;
+}
+
+function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string } {
+  const login = Deno.env.get('BPIUM_LOGIN');
+  const password = Deno.env.get('BPIUM_PASSWORD');
+
+  if (!login || !password) {
+    throw new Error('Bpium credentials not configured');
   }
 
   const credentials = btoa(`${login}:${password}`);
