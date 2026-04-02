@@ -36,12 +36,21 @@ interface BpiumRecord {
   values: Record<string, unknown>;
 }
 
+function getBpiumDomain(): string {
+  let domain = Deno.env.get('BPIUM_DOMAIN');
+  if (!domain) throw new Error('BPIUM_DOMAIN not configured');
+  domain = domain.replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(domain)) {
+    domain = `https://${domain}`;
+  }
+  return domain;
+}
+
 function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string } {
-  const domain = Deno.env.get('BPIUM_DOMAIN');
   const login = Deno.env.get('BPIUM_LOGIN');
   const password = Deno.env.get('BPIUM_PASSWORD');
 
-  if (!domain || !login || !password) {
+  if (!login || !password) {
     throw new Error('Bpium credentials not configured');
   }
 
@@ -54,7 +63,7 @@ function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string 
 }
 
 async function fetchCatalog(headers: { Authorization: string; 'Content-Type': string }, catalogId: string): Promise<BpiumRecord[]> {
-  const domain = Deno.env.get('BPIUM_DOMAIN');
+  const domain = getBpiumDomain();
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'GET',
@@ -70,7 +79,7 @@ async function fetchCatalog(headers: { Authorization: string; 'Content-Type': st
 }
 
 async function fetchCatalogInfo(headers: { Authorization: string; 'Content-Type': string }, catalogId: string): Promise<unknown> {
-  const domain = Deno.env.get('BPIUM_DOMAIN');
+  const domain = getBpiumDomain();
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}`, {
     method: 'GET',
@@ -93,7 +102,7 @@ async function createRecord(
   catalogId: string, 
   values: Record<string, unknown>
 ): Promise<BpiumRecord> {
-  const domain = Deno.env.get('BPIUM_DOMAIN');
+  const domain = getBpiumDomain();
   
   const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'POST',
