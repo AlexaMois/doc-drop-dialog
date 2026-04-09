@@ -414,6 +414,33 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
       {/* Мини-викторина */}
       <QuizGame onCorrectAnswer={setQuizPassed} />
 
+      {/* Причины блокировки кнопки */}
+      {(() => {
+        const reasons: string[] = [];
+        if (!quizPassed) reasons.push("Пройдите викторину");
+        if (!documentName?.trim()) reasons.push("Введите название документа");
+        if (!file) reasons.push("Загрузите файл");
+        if (!watch("responsiblePerson")?.trim()) reasons.push("Введите ФИО");
+        if (!sources?.length) reasons.push("Выберите источник");
+        if (!directions?.length) reasons.push("Выберите направления");
+        if (!roles?.length) reasons.push("Выберите роли");
+        if (!projects?.length) reasons.push("Выберите проекты");
+        if (!tags?.length) reasons.push("Выберите теги");
+        if (duplicateCheck.exactMatches.length > 0) reasons.push("Обнаружен точный дубликат");
+
+        return reasons.length > 0 && !isSubmitting ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive space-y-1">
+            <p className="font-medium flex items-center gap-1.5">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              Отправка заблокирована:
+            </p>
+            <ul className="list-disc list-inside pl-5 space-y-0.5">
+              {reasons.map((r) => <li key={r}>{r}</li>)}
+            </ul>
+          </div>
+        ) : null;
+      })()}
+
       {/* Кнопка отправки */}
       <Button
         type="submit"
