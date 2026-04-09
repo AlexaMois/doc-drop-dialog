@@ -1,49 +1,40 @@
 
 
-## Сворачиваемый список похожих документов
+## План: Создание подробной технической документации (Markdown)
 
-### Что изменится
-Жёлтая карточка "Найдены похожие документы" станет сворачиваемой. По умолчанию список скрыт, виден только заголовок. Клик по заголовку разворачивает/сворачивает список с анимацией.
+Создам файл `DOCUMENTATION.md` в корне проекта с полной технической документацией на русском языке.
 
-### Изменения в `src/components/DuplicateInlineWarning.tsx`
+### Структура документа
 
-- Добавить `useState<boolean>(false)` для управления состоянием open/closed
-- Сделать заголовок жёлтой карточки кликабельным (`cursor-pointer`, `onClick`)
-- Добавить иконку `ChevronDown` справа от заголовка с поворотом: `rotate-0` (свёрнуто) / `rotate-180` (развёрнуто)
-- Обернуть список `<ul>` и подсказку в контейнер с `overflow-hidden`, `transition-all duration-200`, и условным скрытием через `max-height: 0` / `max-height: auto` (или условный рендеринг)
-- Красная карточка остаётся без изменений
+1. **Обзор проекта** — назначение, стек технологий
+2. **Архитектура** — схема компонентов и потоков данных
+3. **Структура файлов** — описание каждого значимого файла
+4. **Компоненты**
+   - `DocumentForm` — основная форма, валидация (Zod), поля, логика отправки
+   - `FileUpload` — drag-and-drop, лимит 50 МБ
+   - `MultiSelect` — адаптивный (Popover/Sheet), поддержка single/multi
+   - `TagSelector` — AI-теги + свободный ввод
+   - `QuizGame` — мини-викторина, блокирует отправку
+   - `DuplicateWarningDialog` / `DuplicateInlineWarning` — предупреждения о дубликатах
+   - `ErrorBoundary` — обработка ошибок
+5. **Хуки**
+   - `useAllCatalogs` — загрузка справочников Bpium
+   - `useDuplicateCheck` — debounced проверка дубликатов
+   - `useAiTagSuggestions` — AI-подсказки тегов (debounce 1с)
+   - `useResponsiblePerson` — ФИО из localStorage, однократная фиксация
+6. **Edge Functions**
+   - `bpium-api` — CRUD Bpium (каталоги, дубликаты, отправка документа), маппинг полей
+   - `suggest-tags` — AI-генерация тегов через Lovable AI Gateway (Gemini 2.5 Flash)
+7. **Интеграция с Bpium** — ID каталогов, маппинг полей, форматы данных, аутентификация
+8. **Хранилище файлов** — бакет `documents`, загрузка через Supabase Storage
+9. **Секреты** — список всех секретов и их назначение
+10. **Бизнес-логика** — валидация, дубликаты, блокировка ФИО, quiz-гейт
 
 ### Технические детали
 
-```tsx
-// Добавить import
-import { useState } from "react";
-import { ChevronDown } from "lucide-react"; // уже есть в lucide-react
-
-// Внутри компонента
-const [similarOpen, setSimilarOpen] = useState(false);
-
-// Заголовок жёлтой карточки:
-<div
-  className="flex items-center justify-between cursor-pointer"
-  onClick={() => setSimilarOpen(!similarOpen)}
->
-  <div className="flex items-center gap-2 text-sm font-medium text-yellow-700 dark:text-yellow-400">
-    <AlertTriangle className="h-4 w-4 shrink-0" />
-    Найдены похожие документы ({similarMatches.length} шт.)
-  </div>
-  <ChevronDown className={`h-4 w-4 transition-transform duration-200 text-yellow-700 dark:text-yellow-400 ${similarOpen ? "rotate-180" : ""}`} />
-</div>
-
-// Содержимое -- условный рендеринг:
-{similarOpen && (
-  <>
-    <ul>...</ul>
-    <p>...</p>
-  </>
-)}
-```
-
-### Файлы для изменения
-- `src/components/DuplicateInlineWarning.tsx` -- добавить useState, сворачиваемость жёлтой карточки
+- Файл: `DOCUMENTATION.md` в корне проекта
+- Язык: русский (как весь проект)
+- Включу ASCII-диаграммы архитектуры и потока данных
+- Опишу все ID каталогов и полей Bpium
+- Задокументирую промпт AI для тегов
 
