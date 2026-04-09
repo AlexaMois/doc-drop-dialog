@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/MultiSelect";
 import { FileUpload } from "@/components/FileUpload";
 import { TagSelector } from "@/components/TagSelector";
-import { QuizGame } from "@/components/QuizGame";
+
 import { useAllCatalogs, submitDocumentToBpium, checkDocumentDuplicate } from "@/hooks/useBpiumCatalogs";
 import type { DuplicateRecord } from "@/hooks/useBpiumCatalogs";
 import { DuplicateWarningDialog } from "@/components/DuplicateWarningDialog";
