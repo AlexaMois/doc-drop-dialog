@@ -147,6 +147,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
       console.log("Отправка данных в Bpium:", submitData);
       const result = await submitDocumentToBpium(submitData);
       console.log("Документ успешно создан в Bpium:", result);
+      toast.success("Документ успешно отправлен!");
       setIsSubmitted(true);
       onSubmittedChange?.(true);
     } catch (error) {
@@ -158,6 +159,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
   };
 
   const onSubmit = async (data: FormData) => {
+    console.log("[onSubmit] Попытка отправки формы", { documentName: data.documentName, file: data.file?.name });
     // Строгая валидация: все значения должны существовать в каталогах
     const validations = [
       { ids: data.sources, catalog: catalogs.sources.data, name: "Источники" },
@@ -215,7 +217,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
     });
     setIsSubmitted(false);
     onSubmittedChange?.(false);
-    setQuizPassed(false);
+    // квиз не сбрасываем — пользователь уже прошёл его в этой сессии
   };
 
   if (responsible.isLoading || catalogs.isLoading) {
@@ -446,7 +448,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
         type="submit"
         size="lg"
         className="w-full"
-        disabled={isSubmitting || !quizPassed}
+        disabled={isSubmitting || !quizPassed || !documentName?.trim() || !file || !watch("responsiblePerson")?.trim() || !sources?.length || !directions?.length || !roles?.length || !projects?.length || !tags?.length}
       >
         {isSubmitting ? (
           <>
