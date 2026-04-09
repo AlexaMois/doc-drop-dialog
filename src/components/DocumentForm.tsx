@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/MultiSelect";
 import { FileUpload } from "@/components/FileUpload";
 import { TagSelector } from "@/components/TagSelector";
-import { QuizGame } from "@/components/QuizGame";
+
 import { useAllCatalogs, submitDocumentToBpium, checkDocumentDuplicate } from "@/hooks/useBpiumCatalogs";
 import type { DuplicateRecord } from "@/hooks/useBpiumCatalogs";
 import { DuplicateWarningDialog } from "@/components/DuplicateWarningDialog";
@@ -45,7 +45,7 @@ interface DocumentFormProps {
 export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [quizPassed, setQuizPassed] = React.useState(false);
+  
   const [duplicateDialogOpen, setDuplicateDialogOpen] = React.useState(false);
   const [foundDuplicates, setFoundDuplicates] = React.useState<DuplicateRecord[]>([]);
   const [pendingFormData, setPendingFormData] = React.useState<FormData | null>(null);
@@ -413,13 +413,11 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
         <p className="text-sm text-destructive">{errors.tags.message}</p>
       )}
 
-      {/* Мини-викторина */}
-      <QuizGame onCorrectAnswer={setQuizPassed} />
 
       {/* Причины блокировки кнопки */}
       {(() => {
         const reasons: string[] = [];
-        if (!quizPassed) reasons.push("Пройдите викторину");
+        
         if (!documentName?.trim()) reasons.push("Введите название документа");
         if (!file) reasons.push("Загрузите файл");
         if (!watch("responsiblePerson")?.trim()) reasons.push("Введите ФИО");
@@ -448,7 +446,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
         type="submit"
         size="lg"
         className="w-full"
-        disabled={isSubmitting || !quizPassed || !documentName?.trim() || !file || !watch("responsiblePerson")?.trim() || !sources?.length || !directions?.length || !roles?.length || !projects?.length || !tags?.length}
+        disabled={isSubmitting || !documentName?.trim() || !file || !watch("responsiblePerson")?.trim() || !sources?.length || !directions?.length || !roles?.length || !projects?.length || !tags?.length}
       >
         {isSubmitting ? (
           <>
