@@ -15,9 +15,40 @@ interface TagSuggestionRequest {
   projects: string[];
 }
 
+// In-memory rate limiter per IP (resets on cold start)
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(ip: string, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || bucket.resetAt < now) {
+    rateBuckets.set(ip, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (bucket.count >= limit) return false;
+  bucket.count++;
+  return true;
+}
+
+function getClientIp(req: Request): string {
+  return (
+    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+    req.headers.get("cf-connecting-ip") ||
+    "unknown"
+  );
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Rate limit: 20 AI requests/minute per IP (защита AI-кредитов)
+  const ip = getClientIp(req);
+  if (!checkRateLimit(ip, 20, 60_000)) {
+    return new Response(
+      JSON.stringify({ error: "Too many requests", suggestedTags: [] }),
+      { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
   try {
