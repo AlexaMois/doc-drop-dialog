@@ -140,9 +140,47 @@ function levenshteinDistance(a: string, b: string): number {
   return dp[m][n];
 }
 
+// In-memory rate limiter per IP (resets on cold start)
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(ip: string, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || bucket.resetAt < now) {
+    rateBuckets.set(ip, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (bucket.count >= limit) return false;
+  bucket.count++;
+  return true;
+}
+
+function getClientIp(req: Request): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    req.headers.get('cf-connecting-ip') ||
+    'unknown'
+  );
+}
+
+function isValidStorageUrl(url: string): boolean {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  if (!supabaseUrl) return false;
+  const prefix = `${supabaseUrl}/storage/v1/object/public/documents/`;
+  return url.startsWith(prefix);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Rate limit: 60 requests/minute per IP
+  const ip = getClientIp(req);
+  if (!checkRateLimit(ip, 60, 60_000)) {
+    return new Response(
+      JSON.stringify({ error: 'Too many requests, please slow down' }),
+      { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   try {
@@ -302,13 +340,20 @@ Deno.serve(async (req) => {
         // Статус - устанавливаем "Черновик" (1) по умолчанию
         values[DOCUMENT_FIELDS.status] = ['1'];
 
-        // Файл - используем URL из Supabase Storage
+        // Файл - используем URL из Supabase Storage (валидируем префикс, чтобы избежать инъекции произвольных URL)
         if (body.fileUrl) {
+          if (typeof body.fileUrl !== 'string' || !isValidStorageUrl(body.fileUrl)) {
+            return new Response(
+              JSON.stringify({ error: 'Invalid file URL: must be a Supabase Storage public URL for the documents bucket' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          const safeFileName = typeof body.fileName === 'string' ? body.fileName.slice(0, 255) : 'document';
           values[DOCUMENT_FIELDS.file] = [{
             src: body.fileUrl,
-            title: body.fileName || 'document',
+            title: safeFileName,
           }];
-          console.log(`File attached: ${body.fileName} -> ${body.fileUrl}`);
+          console.log(`File attached: ${safeFileName} -> ${body.fileUrl}`);
         }
 
         console.log('Submitting to Bpium catalog 56:', JSON.stringify({ ...values, [DOCUMENT_FIELDS.file]: '[FILE]' }, null, 2));
