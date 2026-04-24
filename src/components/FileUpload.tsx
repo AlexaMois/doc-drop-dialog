@@ -3,7 +3,7 @@ import { Upload, X, FileText, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-const MAX_FILE_SIZE_MB = 50;
+const MAX_FILE_SIZE_MB = 200;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface FileUploadProps {
