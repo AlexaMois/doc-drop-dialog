@@ -1,0 +1,16 @@
+/**
+ * Базовый URL для всех обращений к Supabase (REST, Edge Functions, Storage, TUS).
+ *
+ * Прямой домен *.supabase.co периодически блокируется в РФ, поэтому
+ * всё проксируется через Cloudflare Worker на нашем домене.
+ *
+ * Откат: поставить PROXY_URL = "" — тогда будет использоваться оригинальный
+ * VITE_SUPABASE_URL и приложение пойдёт напрямую в Supabase.
+ */
+const PROXY_URL = "https://api.aleksamois.ru";
+
+export const SUPABASE_BASE_URL: string =
+  PROXY_URL || (import.meta.env.VITE_SUPABASE_URL as string);
+
+export const SUPABASE_ANON_KEY: string = import.meta.env
+  .VITE_SUPABASE_PUBLISHABLE_KEY as string;
