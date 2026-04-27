@@ -2,6 +2,19 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { SUPABASE_BASE_URL, SUPABASE_ANON_KEY } from "@/lib/apiBase";
 
+// Глобальный реестр активных AbortController'ов suggest-tags.
+// Позволяет извне (из performSubmit) отменить все висящие AI-запросы
+// перед началом загрузки файла, чтобы они не делили ресурсы с upload.
+const activeSuggestTagsControllers = new Set<AbortController>();
+
+export function abortAllSuggestTagsRequests() {
+  console.log(`[suggest-tags] Abort всех активных запросов: ${activeSuggestTagsControllers.size}`);
+  for (const ctrl of activeSuggestTagsControllers) {
+    try { ctrl.abort(); } catch { /* noop */ }
+  }
+  activeSuggestTagsControllers.clear();
+}
+
 interface UseAiTagSuggestionsParams {
   documentName: string;
   fileName?: string;
