@@ -152,6 +152,7 @@ export async function uploadDocumentFile(
       onProgress?.(100);
     }
   } catch (err) {
+    console.log("[uploadDocumentFile] Ошибка в catch-блоке:", err);
     if (err instanceof Error && err.message.startsWith("Ошибка загрузки файла")) {
       throw err;
     }
