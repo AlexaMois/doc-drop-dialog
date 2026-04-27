@@ -32,16 +32,18 @@
 2. Введите `api.вашдомен.ru` (или любой другой поддомен).
 3. Cloudflare сам создаст DNS-запись и выпустит SSL.
 
-### 5. Обновить Lovable
-1. **Project Settings → Environment** (Lovable Cloud).
-2. Замените `VITE_SUPABASE_URL` с
-   `https://hombyvzvkdqwjwjnxdlx.supabase.co`
-   на
-   `https://api.вашдомен.ru`
-3. Передеплойте проект (кнопка **Publish → Update**).
+### 5. Подключение в Lovable
 
-Готово. Никаких правок в коде не нужно — клиент Supabase, storage и edge
-functions автоматически подхватят новый URL.
+Прокси-URL зашит в файле `src/lib/apiBase.ts`:
+```ts
+const PROXY_URL = "https://api.aleksamois.ru";
+```
+Все обращения к Supabase (REST, Edge Functions, Storage, TUS) идут через
+эту константу. Чтобы откатиться на прямой Supabase — поставить
+`PROXY_URL = ""` и сделать **Publish → Update**.
+
+`.env` в Lovable не редактируется вручную — он управляется Lovable Cloud
+и пересоздаётся при деплоях. Поэтому переключение делается в коде.
 
 ## Проверка
 
