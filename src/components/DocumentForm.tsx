@@ -125,6 +125,18 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
 
   const performSubmit = async (data: FormData) => {
     setIsSubmitting(true);
+    // Глобальный таймаут на всю операцию submit (5 минут).
+    // Защищает от ситуаций, когда какая-то стадия (upload / Bpium API)
+    // зависла без явной ошибки — пользователь увидит понятное сообщение.
+    const GLOBAL_SUBMIT_TIMEOUT_MS = 5 * 60 * 1000;
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      console.error("[performSubmit] Глобальный таймаут 5 минут истёк");
+      toast.error("Отправка заняла слишком много времени (>5 мин). Попробуйте ещё раз.");
+      setIsSubmitting(false);
+    }, GLOBAL_SUBMIT_TIMEOUT_MS);
+
     try {
       console.log("[performSubmit] Загрузка файла в хранилище...", {
         fileName: data.file?.name,
@@ -133,6 +145,7 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
         supabaseBaseUrl: SUPABASE_BASE_URL,
       });
       const fileUrl = await uploadDocumentFile(data.file!);
+      if (timedOut) return;
       console.log("Файл загружен:", fileUrl);
 
       const submitData = {
@@ -152,15 +165,18 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
 
       console.log("Отправка данных в Bpium:", submitData);
       const result = await submitDocumentToBpium(submitData);
+      if (timedOut) return;
       console.log("Документ успешно создан в Bpium:", result);
       toast.success("Документ успешно отправлен!");
       setIsSubmitted(true);
       onSubmittedChange?.(true);
     } catch (error) {
+      if (timedOut) return;
       console.error("Ошибка отправки документа:", error);
       toast.error(error instanceof Error ? error.message : "Ошибка отправки документа");
     } finally {
-      setIsSubmitting(false);
+      clearTimeout(timeoutId);
+      if (!timedOut) setIsSubmitting(false);
     }
   };
 
