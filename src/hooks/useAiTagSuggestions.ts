@@ -82,8 +82,10 @@ export function useAiTagSuggestions({
       // Отменяем предыдущий запрос
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
+        activeSuggestTagsControllers.delete(abortControllerRef.current);
       }
       abortControllerRef.current = new AbortController();
+      activeSuggestTagsControllers.add(abortControllerRef.current);
 
       try {
         const supabaseUrl = SUPABASE_BASE_URL;
