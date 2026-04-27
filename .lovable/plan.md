@@ -1,28 +1,90 @@
-Проблема сейчас точечно в Storage upload: Edge Functions через `api.aleksamois.ru` работают (`200 OK`), AI-теги и каталоги загружаются, но POST на `/storage/v1/object/documents/...` падает как `Failed to fetch` без HTTP-статуса. Это похоже не на ошибку приложения/Bpium, а на проблему прохождения multipart upload через Worker/CORS/headers.
+## Контекст
 
-План исправления:
+Загрузка файлов теперь работает (CORS починен через Cloudflare Worker). Но при отправке формы Edge Function `bpium-api` отвечает:
 
-1. Перевести загрузку файлов на собственный `fetch` вместо SDK-метода `.storage.upload()`
-   - Для файлов меньше 6 МБ отправлять `POST` напрямую на:
-     `https://api.aleksamois.ru/storage/v1/object/documents/{filePath}`
-   - Явно передавать нужные заголовки: `Authorization`, `apikey`, `x-upsert`, `cache-control`.
-   - Это уберёт зависимость от внутренних заголовков SDK, которые сложнее контролировать через прокси.
+> `Invalid file URL: must be a Supabase Storage public URL for the documents bucket`
 
-2. Оставить TUS для больших файлов, но усилить совместимость
-   - Проверить и при необходимости добавить `apikey` в TUS-запросы.
-   - Убедиться, что endpoint остаётся проксированным: `/storage/v1/upload/resumable`.
+### Причина
 
-3. Обновить Cloudflare Worker-шаблон в проекте
-   - Добавить в allow/expose headers недостающие Storage/TUS заголовки, которые реально могут приходить от браузера и от Storage API.
-   - Зафиксировать в README, что Worker должен быть обновлён этим кодом в Cloudflare, иначе приложение может работать с Edge Functions, но не с файлами.
+В `supabase/functions/bpium-api/index.ts` (строки 165–170) URL файла валидируется по жёсткому префиксу:
 
-4. Улучшить диагностику ошибки загрузки
-   - Если upload не проходит, показывать более полезное сообщение с HTTP-статусом/текстом ответа, когда они доступны.
-   - Если статус недоступен (`Failed to fetch`) — явно писать, что это сетевая/CORS-прокси проблема, а не ошибка заполнения формы.
+```ts
+const supabaseUrl = Deno.env.get('SUPABASE_URL'); // hombyvzvkdqwjwjnxdlx.supabase.co
+const prefix = `${supabaseUrl}/storage/v1/object/public/documents/`;
+return url.startsWith(prefix);
+```
 
-5. Проверка после изменений
-   - Проверить, что каталоги и AI-теги по-прежнему идут через `api.aleksamois.ru`.
-   - Проверить загрузку маленького PDF через `/storage/v1/object/...`.
-   - Проверить, что публичная ссылка на файл формируется через прокси-домен и затем отправляется в `bpium-api`.
+А `src/lib/storage.ts` после загрузки вызывает:
+```ts
+supabase.storage.from(BUCKET).getPublicUrl(filePath)
+```
+Клиент `supabase` теперь инициализирован прокси-доменом `https://api.aleksamois.ru`, поэтому возвращается ссылка через прокси — и валидатор её отбрасывает.
 
-Важно: в рамках кода Lovable я смогу исправить клиентскую загрузку и обновить Worker-файл в репозитории. После этого нужно будет скопировать обновлённый `infra/cloudflare-worker/worker.js` в Cloudflare Worker и нажать Deploy, потому что сам Cloudflare настраивается вне Lovable.
+### Почему правильно чинить на стороне клиента, а не валидатора
+
+1. **Семантика прокси:** Cloudflare Worker нужен только для обхода блокировки исходящих запросов из РФ от **браузера** к Supabase. У Bpium (внешний сервис) такой проблемы нет — пусть качает файл напрямую с `*.supabase.co`. Это разгружает прокси и убирает лишнее звено.
+2. **Безопасность:** Валидатор в Edge Function правильный — он защищает от инъекции произвольных URL в Bpium. Ослаблять его (разрешать прокси-домен) — хуже.
+3. **Ссылка и так уже идёт «прямо»** в текущем коде — есть комментарий в `storage.ts`:
+   > `// Публичная ссылка должна вести на исходный домен Supabase, а не на прокси, чтобы Bpium / другие внешние системы могли её открыть напрямую.`
+   
+   Намерение было верное, но реализация сломалась, когда мы централизовали URL — `getPublicUrl()` теперь использует прокси-базу из клиента.
+
+## План изменений
+
+### 1. `src/lib/apiBase.ts` — добавить «прямой» URL Supabase
+
+Дополнить файл новой константой, которая всегда указывает на исходный домен Supabase, не зависящий от `PROXY_URL`:
+
+```ts
+/**
+ * Прямой URL Supabase, без прокси.
+ * Используется для генерации публичных ссылок на файлы в Storage,
+ * которые потом отправляются во внешние системы (Bpium) — они должны
+ * скачивать файлы напрямую с *.supabase.co, а не через наш прокси.
+ */
+export const SUPABASE_DIRECT_URL: string = import.meta.env
+  .VITE_SUPABASE_URL as string;
+```
+
+### 2. `src/lib/storage.ts` — формировать public URL вручную
+
+Заменить последние строки `uploadDocumentFile`:
+
+```ts
+// БЫЛО:
+const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+return urlData.publicUrl;
+
+// СТАНЕТ:
+return `${SUPABASE_DIRECT_URL}/storage/v1/object/public/${BUCKET}/${filePath}`;
+```
+
+Это даст ровно тот префикс, который ждёт валидатор в Edge Function:
+`https://hombyvzvkdqwjwjnxdlx.supabase.co/storage/v1/object/public/documents/uploads/...`
+
+И импортировать `SUPABASE_DIRECT_URL` из `@/lib/apiBase`.
+
+### 3. (Опционально) `deleteDocumentFile` — оставить как есть
+
+Удаление через `supabase.storage.from(BUCKET).remove()` уйдёт через прокси — это нормально, оно из браузера.
+
+### 4. Обновить память проекта
+
+Дополнить `mem://infrastructure/cloudflare-proxy`:
+> Public-ссылки на файлы Storage генерируются вручную через `SUPABASE_DIRECT_URL` (прямой `*.supabase.co`), чтобы внешние системы (Bpium) могли их скачать и валидатор Edge Function `bpium-api` их пропустил.
+
+## Что НЕ меняем
+
+- `bpium-api/index.ts` — валидатор URL остаётся строгим (это правильно).
+- Cloudflare Worker — он работает корректно.
+- Остальные хуки и `supabase` клиент — продолжают ходить через прокси.
+
+## Проверка после деплоя
+
+1. Загрузить PDF → в DevTools запрос на `api.aleksamois.ru/storage/v1/object/...` → 200.
+2. Submit → запрос `bpium-api?action=submit-document` → в payload `fileUrl` начинается с `https://hombyvzvkdqwjwjnxdlx.supabase.co/storage/v1/object/public/documents/...` → 200, в ответе `recordId`.
+3. Открыть карточку в Bpium → файл прикреплён, открывается по клику.
+
+## Откат
+
+Если что-то пойдёт не так — вернуть строку `return urlData.publicUrl` в `storage.ts` (одна строка).

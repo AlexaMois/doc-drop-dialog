@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import * as tus from "tus-js-client";
-import { SUPABASE_BASE_URL, SUPABASE_ANON_KEY } from "@/lib/apiBase";
+import { SUPABASE_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_DIRECT_URL } from "@/lib/apiBase";
 
 const SUPABASE_URL = SUPABASE_BASE_URL;
 
@@ -138,10 +138,10 @@ export async function uploadDocumentFile(
     throw new Error(`Ошибка загрузки файла: ${describeUploadError(err)}`);
   }
 
-  // Публичная ссылка должна вести на исходный домен Supabase, а не на прокси,
-  // чтобы Bpium / другие внешние системы могли её открыть напрямую.
-  const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
-  return urlData.publicUrl;
+  // Публичная ссылка должна вести на исходный домен Supabase (не на прокси):
+  // 1) внешним системам (Bpium) проще качать напрямую без посредников;
+  // 2) Edge Function bpium-api валидирует префикс URL по SUPABASE_URL.
+  return `${SUPABASE_DIRECT_URL}/storage/v1/object/public/${BUCKET}/${filePath}`;
 }
 
 /**
