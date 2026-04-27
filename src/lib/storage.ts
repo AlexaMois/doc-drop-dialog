@@ -42,10 +42,17 @@ function describeUploadError(err: unknown): string {
  * REST endpoint принимает чистое тело файла и возвращает 200/201.
  * upsert передаём query-параметром, никаких нестандартных заголовков нет.
  */
+// Таймаут на одну попытку REST-загрузки. Большие файлы идут через TUS,
+// поэтому здесь хватает 2 минут даже для медленных мобильных сетей.
+const REST_UPLOAD_TIMEOUT_MS = 120_000;
+const REST_UPLOAD_MAX_RETRIES = 2; // 1 основная попытка + 2 ретрая
+const REST_UPLOAD_BASE_DELAY_MS = 1000;
+
+const sleepMs = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function uploadViaRest(file: File, filePath: string): Promise<void> {
   const url = `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${filePath}`;
 
-  // Логируем детали запроса (без apikey)
   const loggedHeaders: Record<string, string> = {
     authorization: "Bearer <redacted>",
     "content-type": file.type || "application/octet-stream",
@@ -56,32 +63,80 @@ async function uploadViaRest(file: File, filePath: string): Promise<void> {
     headers: loggedHeaders,
     fileSize: file.size,
     fileName: file.name,
+    timeoutMs: REST_UPLOAD_TIMEOUT_MS,
   });
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      apikey: SUPABASE_ANON_KEY,
-      "content-type": file.type || "application/octet-stream",
-      "cache-control": "3600",
-    },
-    body: file,
-  });
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt <= REST_UPLOAD_MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REST_UPLOAD_TIMEOUT_MS);
+    const started = Date.now();
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          apikey: SUPABASE_ANON_KEY,
+          "content-type": file.type || "application/octet-stream",
+          "cache-control": "3600",
+        },
+        body: file,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
 
-  console.log("[uploadViaRest] Ответ fetch", {
-    status: res.status,
-    statusText: res.statusText,
-    ok: res.ok,
-  });
+      console.log("[uploadViaRest] Ответ fetch", {
+        attempt: attempt + 1,
+        status: res.status,
+        statusText: res.statusText,
+        ok: res.ok,
+        elapsedMs: Date.now() - started,
+      });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    console.error("Storage REST upload error:", res.status, text);
-    throw new Error(
-      `Ошибка загрузки файла (HTTP ${res.status}): ${text || res.statusText}`,
-    );
+      if (res.ok) return;
+
+      const text = await res.text().catch(() => "");
+      // Ретраим только на транзиентных upstream-ошибках
+      if ([502, 503, 504, 408, 429].includes(res.status) && attempt < REST_UPLOAD_MAX_RETRIES) {
+        const delay = REST_UPLOAD_BASE_DELAY_MS * Math.pow(2, attempt);
+        console.warn(
+          `[uploadViaRest] HTTP ${res.status} (попытка ${attempt + 1}), повтор через ${delay}мс`,
+          text,
+        );
+        await sleepMs(delay);
+        continue;
+      }
+      console.error("Storage REST upload error:", res.status, text);
+      throw new Error(
+        `Ошибка загрузки файла (HTTP ${res.status}): ${text || res.statusText}`,
+      );
+    } catch (err) {
+      clearTimeout(timer);
+      lastErr = err;
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      const elapsed = Date.now() - started;
+      console.error("[uploadViaRest] fetch исключение", {
+        attempt: attempt + 1,
+        elapsedMs: elapsed,
+        aborted: isAbort,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      // Сообщение об ошибке от !res.ok — пробрасываем без ретрая
+      if (err instanceof Error && err.message.startsWith("Ошибка загрузки файла")) {
+        throw err;
+      }
+      // Сетевые ошибки и таймауты — ретраим
+      if (attempt < REST_UPLOAD_MAX_RETRIES) {
+        const delay = REST_UPLOAD_BASE_DELAY_MS * Math.pow(2, attempt);
+        console.warn(`[uploadViaRest] сетевая ошибка, повтор через ${delay}мс`);
+        await sleepMs(delay);
+        continue;
+      }
+    }
   }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error("Не удалось загрузить файл после нескольких попыток");
 }
 
 /**
