@@ -137,6 +137,9 @@ export function useAiTagSuggestions({
         console.error("AI tag suggestion error:", err);
         setError("Не удалось получить рекомендации");
       } finally {
+        if (abortControllerRef.current) {
+          activeSuggestTagsControllers.delete(abortControllerRef.current);
+        }
         setIsLoading(false);
       }
     }, DEBOUNCE_MS);
