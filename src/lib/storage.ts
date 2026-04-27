@@ -189,63 +189,37 @@ function uploadViaTus(
 }
 
 /**
- * Дедупликация одновременных вызовов: если тот же файл (по name+size+lastModified)
- * уже грузится — возвращаем существующий Promise вместо повторной загрузки.
- * Это устраняет дубли при двойном клике / повторных submit / React strict mode.
- */
-const inFlightUploads = new Map<string, Promise<string>>();
-
-function fileDedupeKey(file: File): string {
-  return `${file.name}::${file.size}::${file.lastModified}`;
-}
-
-/**
  * Upload file to Supabase Storage and return public URL.
  * Маленькие файлы — обычным POST через REST (без supabase-js — иначе ломается CORS).
  * Крупные — через TUS resumable.
+ *
+ * Защита от двойных кликов и параллельных вызовов реализована на уровне
+ * вызывающего кода (isSubmitting в DocumentForm). Здесь дедупликации нет —
+ * она маскировала зависания и не давала видеть, что происходит.
  */
 export async function uploadDocumentFile(
   file: File,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
-  const dedupeKey = fileDedupeKey(file);
-  const existing = inFlightUploads.get(dedupeKey);
-  if (existing) {
-    console.log("[uploadDocumentFile] Дедупликация: файл уже грузится, переиспользуем Promise", {
-      name: file.name,
-      size: file.size,
-    });
-    return existing;
-  }
-
-  const promise = (async () => {
-    const filePath = buildFilePath(file);
-    try {
-      if (file.size >= TUS_THRESHOLD_BYTES) {
-        await uploadViaTus(file, filePath, onProgress);
-      } else {
-        await uploadViaRest(file, filePath);
-        onProgress?.(100);
-      }
-    } catch (err) {
-      console.log("[uploadDocumentFile] Ошибка в catch-блоке:", err);
-      if (err instanceof Error && err.message.startsWith("Ошибка загрузки файла")) {
-        throw err;
-      }
-      throw new Error(`Ошибка загрузки файла: ${describeUploadError(err)}`);
-    }
-    // Публичная ссылка должна вести на исходный домен Supabase (не на прокси):
-    // 1) внешним системам (Bpium) проще качать напрямую без посредников;
-    // 2) Edge Function bpium-api валидирует префикс URL по SUPABASE_URL.
-    return `${SUPABASE_DIRECT_URL}/storage/v1/object/public/${BUCKET}/${filePath}`;
-  })();
-
-  inFlightUploads.set(dedupeKey, promise);
+  const filePath = buildFilePath(file);
   try {
-    return await promise;
-  } finally {
-    inFlightUploads.delete(dedupeKey);
+    if (file.size >= TUS_THRESHOLD_BYTES) {
+      await uploadViaTus(file, filePath, onProgress);
+    } else {
+      await uploadViaRest(file, filePath);
+      onProgress?.(100);
+    }
+  } catch (err) {
+    console.log("[uploadDocumentFile] Ошибка в catch-блоке:", err);
+    if (err instanceof Error && err.message.startsWith("Ошибка загрузки файла")) {
+      throw err;
+    }
+    throw new Error(`Ошибка загрузки файла: ${describeUploadError(err)}`);
   }
+  // Публичная ссылка должна вести на исходный домен Supabase (не на прокси):
+  // 1) внешним системам (Bpium) проще качать напрямую без посредников;
+  // 2) Edge Function bpium-api валидирует префикс URL по SUPABASE_URL.
+  return `${SUPABASE_DIRECT_URL}/storage/v1/object/public/${BUCKET}/${filePath}`;
 }
 
 /**
