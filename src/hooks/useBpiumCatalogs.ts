@@ -17,8 +17,8 @@ interface CatalogsResponse {
 
 // Запрос к edge function для получения всех каталогов
 async function fetchAllCatalogs(): Promise<CatalogsResponse> {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const supabaseUrl = SUPABASE_BASE_URL;
+  const supabaseKey = SUPABASE_ANON_KEY;
   
   const response = await fetch(
     `${supabaseUrl}/functions/v1/bpium-api?action=get-catalogs`,
@@ -74,8 +74,8 @@ export interface DuplicateResult {
 }
 
 export async function checkDocumentDuplicate(documentName: string): Promise<DuplicateResult> {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const supabaseUrl = SUPABASE_BASE_URL;
+  const supabaseKey = SUPABASE_ANON_KEY;
 
   const response = await fetch(
     `${supabaseUrl}/functions/v1/bpium-api?action=check-duplicate`,
@@ -112,8 +112,8 @@ export async function submitDocumentToBpium(data: {
   websiteUrl: string | null;
   submissionDate: string;
 }): Promise<{ success: boolean; recordId: string }> {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const supabaseUrl = SUPABASE_BASE_URL;
+  const supabaseKey = SUPABASE_ANON_KEY;
   
   const response = await fetch(
     `${supabaseUrl}/functions/v1/bpium-api?action=submit-document`,

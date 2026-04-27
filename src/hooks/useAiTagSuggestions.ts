@@ -72,8 +72,8 @@ export function useAiTagSuggestions({
       abortControllerRef.current = new AbortController();
 
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        const supabaseUrl = SUPABASE_BASE_URL;
+        const supabaseKey = SUPABASE_ANON_KEY;
 
         console.log("Fetching AI tag suggestions...", { documentName, sources, directions });
 
