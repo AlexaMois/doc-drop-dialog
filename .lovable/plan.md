@@ -1,50 +1,28 @@
+Проблема сейчас точечно в Storage upload: Edge Functions через `api.aleksamois.ru` работают (`200 OK`), AI-теги и каталоги загружаются, но POST на `/storage/v1/object/documents/...` падает как `Failed to fetch` без HTTP-статуса. Это похоже не на ошибку приложения/Bpium, а на проблему прохождения multipart upload через Worker/CORS/headers.
 
-## Цель
-Перевести фронтенд на работу через прокси `https://api.aleksamois.ru` вместо прямого `https://hombyvzvkdqwjwjnxdlx.supabase.co`, чтобы портал работал в РФ без VPN.
+План исправления:
 
-## Почему правим код, а не `.env`
-В Lovable файл `.env` и `src/integrations/supabase/client.ts` управляются Lovable Cloud. Прямой UI для подмены `VITE_SUPABASE_URL` в проекте отсутствует — `.env` пересоздаётся автоматически. Поэтому прокси-URL надо зашить в коде с возможностью отката.
+1. Перевести загрузку файлов на собственный `fetch` вместо SDK-метода `.storage.upload()`
+   - Для файлов меньше 6 МБ отправлять `POST` напрямую на:
+     `https://api.aleksamois.ru/storage/v1/object/documents/{filePath}`
+   - Явно передавать нужные заголовки: `Authorization`, `apikey`, `x-upsert`, `cache-control`.
+   - Это уберёт зависимость от внутренних заголовков SDK, которые сложнее контролировать через прокси.
 
-## Изменения
+2. Оставить TUS для больших файлов, но усилить совместимость
+   - Проверить и при необходимости добавить `apikey` в TUS-запросы.
+   - Убедиться, что endpoint остаётся проксированным: `/storage/v1/upload/resumable`.
 
-### 1. `src/integrations/supabase/client.ts`
-Добавить константу прокси и использовать её вместо `import.meta.env.VITE_SUPABASE_URL`:
+3. Обновить Cloudflare Worker-шаблон в проекте
+   - Добавить в allow/expose headers недостающие Storage/TUS заголовки, которые реально могут приходить от браузера и от Storage API.
+   - Зафиксировать в README, что Worker должен быть обновлён этим кодом в Cloudflare, иначе приложение может работать с Edge Functions, но не с файлами.
 
-```ts
-// Прокси через Cloudflare Worker (обход блокировки *.supabase.co в РФ).
-// Чтобы откатиться на прямой Supabase — поставить PROXY_URL = "".
-const PROXY_URL = "https://api.aleksamois.ru";
-const SUPABASE_URL = PROXY_URL || import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-```
+4. Улучшить диагностику ошибки загрузки
+   - Если upload не проходит, показывать более полезное сообщение с HTTP-статусом/текстом ответа, когда они доступны.
+   - Если статус недоступен (`Failed to fetch`) — явно писать, что это сетевая/CORS-прокси проблема, а не ошибка заполнения формы.
 
-Остальное (createClient, опции auth) остаётся без изменений.
+5. Проверка после изменений
+   - Проверить, что каталоги и AI-теги по-прежнему идут через `api.aleksamois.ru`.
+   - Проверить загрузку маленького PDF через `/storage/v1/object/...`.
+   - Проверить, что публичная ссылка на файл формируется через прокси-домен и затем отправляется в `bpium-api`.
 
-### 2. `src/lib/storage.ts`
-TUS-аплоад в `uploadViaTus` сейчас, скорее всего, тоже строит endpoint из `VITE_SUPABASE_URL`. Нужно убедиться, что он использует тот же базовый URL, что и `supabase` клиент. Варианты:
-- взять URL из `supabase.storage.url` (если задействуется напрямую), либо
-- импортировать из клиента переменную `SUPABASE_URL` (экспортировать её из `client.ts`) и собирать TUS endpoint как `${SUPABASE_URL}/storage/v1/upload/resumable`.
-
-Я проверю текущую реализацию и поправлю строку формирования endpoint так, чтобы она шла через `api.aleksamois.ru`.
-
-### 3. Worker — проверить заголовки для TUS
-В `infra/cloudflare-worker/worker.js` уже добавлены заголовки `tus-resumable`, `upload-length`, `upload-metadata`, `upload-offset`, `x-upsert` в Allow-Headers и `location`, `upload-offset`, `upload-length`, `tus-resumable` в Expose-Headers. Менять не нужно.
-
-## Что НЕ меняется
-- `.env` — не трогаем (управляется Lovable).
-- `src/integrations/supabase/types.ts` — не трогаем.
-- Edge Functions, RLS, миграции — не затрагиваются. Они продолжают жить на `hombyvzvkdqwjwjnxdlx.supabase.co`, но клиент будет ходить к ним через `api.aleksamois.ru/functions/v1/...`.
-
-## Проверка после деплоя
-1. Открыть портал без VPN → форма загружается, каталоги Bpium подтягиваются (вызов `bpium-api` через `/functions/v1/`).
-2. В DevTools → Network: все запросы идут на `api.aleksamois.ru`, статусы 200.
-3. Загрузить файл >6 МБ → TUS-аплоад завершается успешно (PATCH-запросы на `api.aleksamois.ru/storage/v1/upload/resumable/...`).
-4. Загрузить мелкий файл (<6 МБ) → стандартный POST через прокси работает.
-5. Submit документа → запись появляется в Bpium.
-
-## Откат
-Если прокси сломается — поменять одну строку в `src/integrations/supabase/client.ts`:
-```ts
-const PROXY_URL = ""; // вернётся к прямому Supabase
-```
-и сделать Publish → Update.
+Важно: в рамках кода Lovable я смогу исправить клиентскую загрузку и обновить Worker-файл в репозитории. После этого нужно будет скопировать обновлённый `infra/cloudflare-worker/worker.js` в Cloudflare Worker и нажать Deploy, потому что сам Cloudflare настраивается вне Lovable.
