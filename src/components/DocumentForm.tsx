@@ -20,7 +20,7 @@ import { DuplicateWarningDialog } from "@/components/DuplicateWarningDialog";
 import { DuplicateInlineWarning } from "@/components/DuplicateInlineWarning";
 import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
 import { useResponsiblePerson } from "@/hooks/useResponsiblePerson";
-import { useAiTagSuggestions } from "@/hooks/useAiTagSuggestions";
+import { useAiTagSuggestions, abortAllSuggestTagsRequests } from "@/hooks/useAiTagSuggestions";
 import { uploadDocumentFile } from "@/lib/storage";
 import { SUPABASE_BASE_URL } from "@/lib/apiBase";
 
