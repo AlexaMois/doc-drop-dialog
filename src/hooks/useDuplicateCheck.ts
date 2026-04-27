@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { SUPABASE_BASE_URL, SUPABASE_ANON_KEY } from "@/lib/apiBase";
 
 export interface DuplicateMatch {
   id: string;
@@ -41,8 +42,8 @@ export function useDuplicateCheck(documentName: string): DuplicateCheckResult {
       abortRef.current = controller;
 
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        const supabaseUrl = SUPABASE_BASE_URL;
+        const supabaseKey = SUPABASE_ANON_KEY;
 
         const response = await fetch(
           `${supabaseUrl}/functions/v1/bpium-api?action=check-duplicate`,

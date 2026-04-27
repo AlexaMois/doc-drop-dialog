@@ -1,8 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import * as tus from "tus-js-client";
+import { SUPABASE_BASE_URL, SUPABASE_ANON_KEY } from "@/lib/apiBase";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+const SUPABASE_URL = SUPABASE_BASE_URL;
 
 // Файлы крупнее этого порога заливаем resumable-протоколом TUS (чанками, с автоматическими ретраями)
 const TUS_THRESHOLD_BYTES = 6 * 1024 * 1024; // 6 МБ — рекомендация Supabase
