@@ -410,9 +410,10 @@ Deno.serve(async (req) => {
   } catch (error: unknown) {
     console.error('Bpium API error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const status = error instanceof BpiumHttpError ? error.status : 500;
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
