@@ -22,6 +22,7 @@ import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
 import { useResponsiblePerson } from "@/hooks/useResponsiblePerson";
 import { useAiTagSuggestions } from "@/hooks/useAiTagSuggestions";
 import { uploadDocumentFile } from "@/lib/storage";
+import { SUPABASE_BASE_URL } from "@/lib/apiBase";
 
 const formSchema = z.object({
   documentName: z.string().min(1, "Название документа обязательно"),
@@ -125,7 +126,12 @@ export function DocumentForm({ onSubmittedChange }: DocumentFormProps) {
   const performSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
-      console.log("Загрузка файла в хранилище...");
+      console.log("[performSubmit] Загрузка файла в хранилище...", {
+        fileName: data.file?.name,
+        fileSize: data.file?.size,
+        fileType: data.file?.type,
+        supabaseBaseUrl: SUPABASE_BASE_URL,
+      });
       const fileUrl = await uploadDocumentFile(data.file!);
       console.log("Файл загружен:", fileUrl);
 
