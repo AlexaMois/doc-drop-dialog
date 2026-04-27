@@ -44,6 +44,20 @@ function describeUploadError(err: unknown): string {
  */
 async function uploadViaRest(file: File, filePath: string): Promise<void> {
   const url = `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${filePath}`;
+
+  // Логируем детали запроса (без apikey)
+  const loggedHeaders: Record<string, string> = {
+    authorization: "Bearer <redacted>",
+    "content-type": file.type || "application/octet-stream",
+    "cache-control": "3600",
+  };
+  console.log("[uploadViaRest] Начало загрузки", {
+    url,
+    headers: loggedHeaders,
+    fileSize: file.size,
+    fileName: file.name,
+  });
+
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -53,6 +67,12 @@ async function uploadViaRest(file: File, filePath: string): Promise<void> {
       "cache-control": "3600",
     },
     body: file,
+  });
+
+  console.log("[uploadViaRest] Ответ fetch", {
+    status: res.status,
+    statusText: res.statusText,
+    ok: res.ok,
   });
 
   if (!res.ok) {
