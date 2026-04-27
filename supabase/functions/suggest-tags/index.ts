@@ -38,7 +38,7 @@ function getClientIp(req: Request): string {
 }
 
 // ===== Timeout + retry helpers =====
-const AI_FETCH_TIMEOUT_MS = 45_000;
+const AI_FETCH_TIMEOUT_MS = 90_000;
 const AI_MAX_RETRIES = 3;
 const AI_BASE_DELAY_MS = 500;
 
