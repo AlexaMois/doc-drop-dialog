@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
+import { SUPABASE_BASE_URL, SUPABASE_ANON_KEY } from "@/lib/apiBase";
 
 interface UseAiTagSuggestionsParams {
   documentName: string;

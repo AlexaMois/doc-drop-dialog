@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { SUPABASE_BASE_URL, SUPABASE_ANON_KEY } from "@/lib/apiBase";
 
 export interface DuplicateMatch {
   id: string;
