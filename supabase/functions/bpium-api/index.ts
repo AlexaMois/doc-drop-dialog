@@ -62,8 +62,11 @@ function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string 
   };
 }
 
-// Таймаут по умолчанию для всех запросов к Bpium API (30 сек)
-const BPIUM_FETCH_TIMEOUT_MS = 30_000;
+// Таймаут по умолчанию для всех запросов к Bpium API (60 сек)
+const BPIUM_FETCH_TIMEOUT_MS = 60_000;
+// Retry-настройки: до 3 попыток, базовая задержка 500мс с экспоненциальным ростом
+const BPIUM_MAX_RETRIES = 3;
+const BPIUM_RETRY_BASE_DELAY_MS = 500;
 
 class BpiumHttpError extends Error {
   status: number;
@@ -74,20 +77,79 @@ class BpiumHttpError extends Error {
   }
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = BPIUM_FETCH_TIMEOUT_MS): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new BpiumHttpError(`Bpium request timed out after ${timeoutMs}ms: ${url}`, 504);
-    }
-    const message = err instanceof Error ? err.message : 'Unknown fetch error';
-    throw new BpiumHttpError(`Network error calling Bpium: ${message}`, 502);
-  } finally {
-    clearTimeout(timeoutId);
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Стоит ли повторять попытку при данной ошибке/статусе.
+// Повторяем только сетевые ошибки, таймауты и 5xx — не повторяем 4xx (это ошибка клиента).
+function shouldRetry(status: number, method: string): boolean {
+  if (status === 504 || status === 502 || status === 503 || status === 408 || status === 429) return true;
+  if (status >= 500 && status < 600) {
+    // Повторяем 5xx только для идемпотентных методов, чтобы не создать дубликаты записей.
+    return method === 'GET' || method === 'HEAD';
   }
+  return false;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = BPIUM_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const method = (init.method || 'GET').toUpperCase();
+  let lastError: BpiumHttpError | null = null;
+
+  for (let attempt = 1; attempt <= BPIUM_MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const startedAt = Date.now();
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      const elapsed = Date.now() - startedAt;
+
+      if (!response.ok && shouldRetry(response.status, method) && attempt < BPIUM_MAX_RETRIES) {
+        const delay = BPIUM_RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        console.warn(
+          `[bpium-api] ${method} ${url} -> ${response.status} (attempt ${attempt}/${BPIUM_MAX_RETRIES}, ${elapsed}ms). Retrying in ${delay}ms...`,
+        );
+        // Освобождаем тело перед повтором
+        try { await response.body?.cancel(); } catch (_) { /* noop */ }
+        await sleep(delay);
+        continue;
+      }
+
+      if (attempt > 1) {
+        console.log(`[bpium-api] ${method} ${url} -> ${response.status} succeeded on attempt ${attempt} (${elapsed}ms)`);
+      }
+      return response;
+    } catch (err) {
+      const elapsed = Date.now() - startedAt;
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      const status = isAbort ? 504 : 502;
+      const message = isAbort
+        ? `Bpium request timed out after ${timeoutMs}ms: ${method} ${url}`
+        : `Network error calling Bpium (${method} ${url}): ${err instanceof Error ? err.message : 'Unknown fetch error'}`;
+      lastError = new BpiumHttpError(message, status);
+
+      const canRetry = (isAbort || method === 'GET' || method === 'HEAD') && attempt < BPIUM_MAX_RETRIES;
+      if (canRetry) {
+        const delay = BPIUM_RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        console.warn(
+          `[bpium-api] ${method} ${url} failed: ${message} (attempt ${attempt}/${BPIUM_MAX_RETRIES}, ${elapsed}ms). Retrying in ${delay}ms...`,
+        );
+        await sleep(delay);
+        continue;
+      }
+      console.error(`[bpium-api] ${method} ${url} failed permanently after ${attempt} attempt(s): ${message}`);
+      throw lastError;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  // Если все попытки исчерпаны на ретраях по статусу — формируем итоговую ошибку
+  throw lastError ?? new BpiumHttpError(`Bpium request failed after ${BPIUM_MAX_RETRIES} attempts: ${method} ${url}`, 502);
 }
 
 async function fetchCatalog(headers: { Authorization: string; 'Content-Type': string }, catalogId: string): Promise<BpiumRecord[]> {
