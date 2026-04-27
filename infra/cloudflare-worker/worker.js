@@ -100,14 +100,18 @@ export default {
     upstreamHeaders.delete("referer");
     upstreamHeaders.set("Host", SUPABASE_HOST);
 
+    const hasBody =
+      request.method !== "GET" && request.method !== "HEAD";
+
     const proxied = new Request(url.toString(), {
       method: request.method,
       headers: upstreamHeaders,
-      body:
-        request.method === "GET" || request.method === "HEAD"
-          ? undefined
-          : request.body,
+      body: hasBody ? request.body : undefined,
       redirect: "manual",
+      // duplex: "half" обязательно при стримящемся теле запроса
+      // (file uploads через Storage REST / TUS). Без него Cloudflare
+      // ругается "RequestInit: duplex option is required when sending a body".
+      ...(hasBody ? { duplex: "half" } : {}),
     });
 
     let response;
