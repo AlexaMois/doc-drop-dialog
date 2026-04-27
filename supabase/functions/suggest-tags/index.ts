@@ -37,6 +37,51 @@ function getClientIp(req: Request): string {
   );
 }
 
+// ===== Timeout + retry helpers =====
+const AI_FETCH_TIMEOUT_MS = 45_000;
+const AI_MAX_RETRIES = 3;
+const AI_BASE_DELAY_MS = 500;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function fetchAiWithRetry(url: string, init: RequestInit): Promise<Response> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AI_FETCH_TIMEOUT_MS);
+    const started = Date.now();
+    try {
+      const res = await fetch(url, { ...init, signal: controller.signal });
+      clearTimeout(timer);
+      // Retry on transient upstream errors
+      if ([502, 503, 504, 408, 429].includes(res.status) && attempt < AI_MAX_RETRIES) {
+        const delay = AI_BASE_DELAY_MS * Math.pow(2, attempt);
+        console.warn(
+          `[suggest-tags] AI gateway returned ${res.status} (attempt ${attempt + 1}/${AI_MAX_RETRIES + 1}), retrying in ${delay}ms`,
+        );
+        await sleep(delay);
+        continue;
+      }
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      lastErr = err;
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      const elapsed = Date.now() - started;
+      console.error(
+        `[suggest-tags] fetch error attempt ${attempt + 1}/${AI_MAX_RETRIES + 1} (${elapsed}ms, abort=${isAbort}):`,
+        err instanceof Error ? err.message : String(err),
+      );
+      if (attempt < AI_MAX_RETRIES) {
+        const delay = AI_BASE_DELAY_MS * Math.pow(2, attempt);
+        await sleep(delay);
+        continue;
+      }
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("AI gateway unreachable");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -129,7 +174,7 @@ Deno.serve(async (req) => {
 
 Верни ТОЛЬКО массив строк в формате JSON, например: ["БДД", "Инструкция", "Водитель", "ВЧНГ", "ОТ", "Регламент", "Контроль", "Вахта"]`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetchAiWithRetry("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
