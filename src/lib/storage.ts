@@ -247,7 +247,6 @@ export async function uploadDocumentFile(
     inFlightUploads.delete(dedupeKey);
   }
 }
-}
 
 /**
  * Delete file from Supabase Storage
