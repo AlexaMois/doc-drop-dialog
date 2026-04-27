@@ -54,5 +54,17 @@ const PROXY_URL = "https://api.aleksamois.ru";
 
 ## Обратный путь
 
-Если что-то пошло не так — верните `VITE_SUPABASE_URL` к исходному
-значению и передеплойте. Сайт мгновенно вернётся к прямой работе с Supabase.
+Если что-то пошло не так — поставьте `PROXY_URL = ""` в `src/lib/apiBase.ts`
+и сделайте Publish → Update. Сайт мгновенно вернётся к прямой работе с Supabase.
+
+## Обновление Worker'а
+
+Если в этой папке поменялся `worker.js` — нужно вручную скопировать новое
+содержимое в Cloudflare:
+
+1. Cloudflare Dashboard → Workers & Pages → `supabase-proxy` → **Edit code**.
+2. Заменить весь код на содержимое `worker.js` из этой папки.
+3. Нажать **Deploy**.
+
+Без этого шага изменения CORS-заголовков (например, добавление `x-upsert`)
+не дойдут до браузера, и upload файлов будет падать с `Failed to fetch`.
