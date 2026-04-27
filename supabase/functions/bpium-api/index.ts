@@ -62,17 +62,45 @@ function getBpiumAuthHeaders(): { Authorization: string; 'Content-Type': string 
   };
 }
 
+// Таймаут по умолчанию для всех запросов к Bpium API (30 сек)
+const BPIUM_FETCH_TIMEOUT_MS = 30_000;
+
+class BpiumHttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'BpiumHttpError';
+    this.status = status;
+  }
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = BPIUM_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new BpiumHttpError(`Bpium request timed out after ${timeoutMs}ms: ${url}`, 504);
+    }
+    const message = err instanceof Error ? err.message : 'Unknown fetch error';
+    throw new BpiumHttpError(`Network error calling Bpium: ${message}`, 502);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function fetchCatalog(headers: { Authorization: string; 'Content-Type': string }, catalogId: string): Promise<BpiumRecord[]> {
   const domain = getBpiumDomain();
-  
-  const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
+
+  const response = await fetchWithTimeout(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'GET',
     headers,
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Failed to fetch catalog ${catalogId}: ${error}`);
+    throw new BpiumHttpError(`Failed to fetch catalog ${catalogId}: ${error}`, response.status);
   }
 
   return await response.json();
@@ -80,15 +108,15 @@ async function fetchCatalog(headers: { Authorization: string; 'Content-Type': st
 
 async function fetchCatalogInfo(headers: { Authorization: string; 'Content-Type': string }, catalogId: string): Promise<unknown> {
   const domain = getBpiumDomain();
-  
-  const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}`, {
+
+  const response = await fetchWithTimeout(`${domain}/api/v1/catalogs/${catalogId}`, {
     method: 'GET',
     headers,
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Failed to fetch catalog info ${catalogId}: ${error}`);
+    throw new BpiumHttpError(`Failed to fetch catalog info ${catalogId}: ${error}`, response.status);
   }
 
   return await response.json();
@@ -98,13 +126,13 @@ async function fetchCatalogInfo(headers: { Authorization: string; 'Content-Type'
 // Используем data URL напрямую для небольших файлов (до 5MB)
 
 async function createRecord(
-  headers: { Authorization: string; 'Content-Type': string }, 
-  catalogId: string, 
+  headers: { Authorization: string; 'Content-Type': string },
+  catalogId: string,
   values: Record<string, unknown>
 ): Promise<BpiumRecord> {
   const domain = getBpiumDomain();
-  
-  const response = await fetch(`${domain}/api/v1/catalogs/${catalogId}/records`, {
+
+  const response = await fetchWithTimeout(`${domain}/api/v1/catalogs/${catalogId}/records`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ values }),
@@ -112,7 +140,7 @@ async function createRecord(
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Failed to create record: ${error}`);
+    throw new BpiumHttpError(`Failed to create record: ${error}`, response.status);
   }
 
   return await response.json();
@@ -162,11 +190,19 @@ function getClientIp(req: Request): string {
   );
 }
 
+// Разрешённые префиксы для публичных ссылок на файлы:
+// 1) прямой Supabase Storage домен
+// 2) Cloudflare-прокси api.aleksamois.ru, через который проходит весь трафик из РФ
+const PROXY_STORAGE_PREFIX = 'https://api.aleksamois.ru/storage/v1/object/public/documents/';
+
 function isValidStorageUrl(url: string): boolean {
+  if (typeof url !== 'string') return false;
+  if (url.startsWith(PROXY_STORAGE_PREFIX)) return true;
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   if (!supabaseUrl) return false;
-  const prefix = `${supabaseUrl}/storage/v1/object/public/documents/`;
-  return url.startsWith(prefix);
+  const directPrefix = `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/public/documents/`;
+  return url.startsWith(directPrefix);
 }
 
 Deno.serve(async (req) => {
